@@ -14,5 +14,7 @@ if(Boost_found)
 endif(Boost_found)
 
 add_executable(calibrate src/calibrate.cpp)
+add_executable(excalibrate src/excalibrate.cpp)
 
 target_link_libraries(calibrate ${OpenCV_LIBS} ${Boost_LIBS})
+target_link_libraries(excalibrate ${OpenCV_LIBS} ${Boost_LIBS})

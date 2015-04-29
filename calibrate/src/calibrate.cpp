@@ -18,15 +18,21 @@ static int calibrate(vector<Mat>* images)
   {
     //cvtColor(images->at(i), images->at(i), CV_BGR2GRAY);
     found = findChessboardCorners(images->at(i), board_size, corners[i], CV_CALIB_CB_ADAPTIVE_THRESH);
-
-    drawChessboardCorners(images->at(i), board_size, corners[i], found);
     std::cout << (found ? "Found" : "Failed") << std::endl;
+    if(found)
+    {
+      drawChessboardCorners(images->at(i), board_size, corners[i], found);
+      Mat view_gray;
+      cvtColor(images->at(i), view_gray, CV_BGR2GRAY);
+      cornerSubPix(view_gray, corners[i], Size(11,11), Size(-1,-1), TermCriteria(CV_TERMCRIT_EPS+CV_TERMCRIT_ITER, 30, 0.1 ));
+    }
+    else corners.erase(corners.begin()+i);
     while(1)
     {
       imshow("bam", images->at(i));
       if(waitKey(30) > 0) break;
     }
-    if(!found) corners.erase(corners.begin()+i);
+
   }
 
   for(int i=0; i<board_size.height; i++)
@@ -38,7 +44,7 @@ static int calibrate(vector<Mat>* images)
   }
   if(corners.size() < 1)
   {
-    std::cout << "No viable images. Get your shit together." << std::endl;
+    std::cerr << "No viable images. Get your shit together." << std::endl;
   }
   else
   {
@@ -54,16 +60,25 @@ static int calibrate(vector<Mat>* images)
       std::cout << "rvecs " << i << ": " << rvecs[i] << std::endl;
       std::cout << "tvecs " << i << ": " << tvecs[i] << std::endl << std::endl;
     }
+
+    FileStorage fs("../config/intrinsic_params", FileStorage::WRITE);
+    fs << "Camera_Matrix" << cameraMatrix;
+    fs << "Distortion_Coefficients" << distCoeffs;
+    fs << "RMS" << rms;
+    fs << "Corners" << corners[0];
+    fs.release();
   }
 }
 
 static int calibrate_via_live_images()
 {
   VideoCapture cap(1); 
+  cap.set(CV_CAP_PROP_FRAME_WIDTH, 1280);
+  cap.set(CV_CAP_PROP_FRAME_HEIGHT, 768);
 
   if(!cap.isOpened())
   {
-    printf("Camera could not be accessed");
+    std::cerr << "Camera could not be accessed" << std::endl;
     return -1;
   }
 
@@ -76,7 +91,6 @@ static int calibrate_via_live_images()
 
     imshow("shit", frame);
     int key = waitKey(30);
-    //std::cout << key << std::endl;
     if(key == 1048603) break;
     else if(key == 1048608) images.push_back(frame);
     else if(key == 1048691 && images.size() > 0)
@@ -113,7 +127,6 @@ static void calibrate_via_prerecorded_images(int argc, char** argv)
 {
   vector<Mat> images;
   imread(argv[0], CV_LOAD_IMAGE_COLOR);
-  std::cout << "argc: " << argc << std::endl;
   for (int i=1; i<argc; i++)
   {
     images.push_back(imread(argv[i], CV_LOAD_IMAGE_COLOR));
@@ -133,7 +146,7 @@ int main(int argc, char** argv)
 
   else
   {
-    printf("Processing images.\n");
+    std::cout << "Processing images." << std::endl;
 
     calibrate_via_prerecorded_images(argc, argv);
   }
