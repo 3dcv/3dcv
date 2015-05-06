@@ -3,6 +3,7 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 using namespace cv;
+using namespace std;
 
 static int calibrate(vector<Mat>* images)
 {

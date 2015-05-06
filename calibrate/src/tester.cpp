@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <opencv2/opencv.hpp>
+#include <opencv2/core/affine.hpp>
 #include <iostream>
 #include <fstream>
 
@@ -31,10 +32,11 @@ static int write_ply(vector<Vec3f>* verts, char* ply_path)
   ofst.close();
 }
 
-static int find_lines(Mat* frame)
+static int find_lines(Mat* frame, Mat camera_matrix, Mat dist_coeffs, Mat rvec, Mat tvec)
 {
-  Mat dst = frame->clone();
-  Mat gray;
+
+  Mat dst, gray;
+  undistort(*frame, dst, camera_matrix, dist_coeffs);
 
   for(int i=0; i<dst.cols; i++)
   {
@@ -46,7 +48,7 @@ static int find_lines(Mat* frame)
     {
       uchar rvl = 255-(dst.at<Vec3b>(j,i).val[2]);
 
-      if(dst.at<Vec3b>(j,i).val[2]-50 > dst.at<Vec3b>(j,i).val[0] && dst.at<Vec3b>(j,i).val[2]-50 > dst.at<Vec3b>(j,i).val[1])
+      if(dst.at<Vec3b>(j,i).val[2]-60 > dst.at<Vec3b>(j,i).val[0] && dst.at<Vec3b>(j,i).val[2]-60 > dst.at<Vec3b>(j,i).val[1])
       {
 
         frame->at<Vec3b>(j,i) = Vec3b(rvl, rvl, rvl);
@@ -68,10 +70,9 @@ static int find_lines(Mat* frame)
   //cvtColor(dst, *frame, CV_GRAY2BGR);
   vector<Vec2f> lines;
   vector<Vec4i> linesP;
-  HoughLinesP( dst, linesP, 1, CV_PI/180, 85, 40, 200 );
+  HoughLinesP( dst, linesP, 1, CV_PI/180, 70, 40, 200 );
   //HoughLines(dst, lines, 1, CV_PI/180, 100);
   for(int i=0; i<lines.size(); i++) 
-
   {
     //std::cout << lines[i] << std::endl;
     float rho = lines[i][0];
@@ -85,13 +86,58 @@ static int find_lines(Mat* frame)
     line(*frame, pt1, pt2, Scalar(0,0,255), 3, 8 );
   }
 
+  vector<Point> img_points;
+  // now to select the right lines. assumption for now: there're two lines, as they represent the zero-y and zero-x planes.
+  // only those lines will be drawn. trying to handle the occurrence of double lines
+  // TODO look forward rather than backward to be able to compare double lines and use the longer one. or rather compare norms of the respective points instead of those of the entire lines
   for(int i=0; i<linesP.size(); i++) 
   {
-    std::cout << linesP[i] << std::endl;
+
     Vec4i l = linesP[i];
-    if(!((l[0]<frame->cols*0.3 && l[2] <frame->cols*0.3) || (l[0]>frame->cols*0.7 && l[2]>frame->cols*0.7)) && l[2]-l[0] > frame->cols/7)
+    if((((l[0]<frame->cols*0.3 && l[2] <frame->cols*0.3) || (l[0]>frame->cols*0.7 && l[2]>frame->cols*0.7)) && l[2]-l[0] > frame->cols/7)
+      || (i>0 && norm(linesP[i]-linesP[i-1]) < 800))
+    {
+      linesP.erase(linesP.begin()+i);
+      i--;
+    }
+    else
+    {
+      //std::cout << linesP[i] << std::endl;
+      //if(i>0 norm(linesP[i]-linesP[i-1]) < 50) cout << "i-(i-1): " << linesP[i]-linesP[i-1] << endl << "norm(i-(i-1)): " << norm(linesP[i]-linesP[i-1]) << endl;
       line(*frame, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 3, CV_AA);
+
+    }
   }
+  // if there are exactly two lines left, keep working with the frame. otherwise do nothing. there are plenty more frames in the sea
+
+  cout << "linesP size " << linesP.size() << endl;
+  if(linesP.size() == 2)
+  {
+    vector<Point3f> hom_lines;
+    vector<Point2f> img_points;
+    img_points.push_back(Point(linesP[0][0], linesP[0][1]));
+    img_points.push_back(Point(linesP[0][2], linesP[0][3]));
+    img_points.push_back(Point(linesP[1][0], linesP[1][1]));
+    img_points.push_back(Point(linesP[1][2], linesP[1][3]));
+    
+    cout << linesP[0] << endl << linesP[1] << endl << endl;
+    cout << "norm " << norm(linesP[0]-linesP[1]) << endl;
+    convertPointsToHomogeneous(img_points, hom_lines); 
+    cout << hom_lines[0] << endl;
+    Affine3f rodri((Vec3f)rvec, (Vec3f)tvec);
+    cout << rodri.translation() << endl;
+    cout << rodri.rotation() << endl;
+
+    Affine3f to3D = rodri.inv();
+    cout << "profit: " << to3D*hom_lines[0] << endl;
+    // find red points whose x is between first line's second points's x and second line's first point's x
+    // approach:
+    // 1: project line image points to 3D
+    // calculate plane equation from two lines
+    // project image points in between lines to 3D and 
+    // somehow use plane equation as rotation vector on those points and vector representing the point's distance from plane as translation
+   
+  } 
 }
 
 int main(int argc, char** argv)
@@ -105,7 +151,7 @@ int main(int argc, char** argv)
     cap.set(CV_CAP_PROP_FRAME_HEIGHT, 768);
   }
   else cap.open(argv[1]);
-  Mat rvec, tvec;
+  Mat rvec, tvec, camera_matrix, dist_coeffs;
 
 //  VideoWriter writie("../saved_images/vid.mp4", CV_FOURCC('X','2','6','4'), 20, cvSize(cap.get(CV_CAP_PROP_FRAME_WIDTH), cap.get(CV_CAP_PROP_FRAME_HEIGHT)));
   VideoWriter writie("../saved_images/vid.avi", CV_FOURCC('M','J','P','G'), 25, cvSize(cap.get(CV_CAP_PROP_FRAME_WIDTH), cap.get(CV_CAP_PROP_FRAME_HEIGHT)));
@@ -117,22 +163,33 @@ int main(int argc, char** argv)
   baer.push_back(Vec3f(0.3, 4, 9.34));
   baer.push_back(Vec3f(0.0, 0, 19.34));
   //write_ply(&baer, (char*)"../config/shit");
-/*
-  FileStorage fsep(argv[2], FileStorage::READ);
+
+
+  // Read intrinsic and extrinsic parameters from config files
+  FileStorage fsip(argv[2], FileStorage::READ);
+  if(!fsip.isOpened())
+  {
+    std::cerr << "Parameter file could not be opened." << std::endl;
+    return -1;
+  }
+  fsip["Camera_Matrix"] >> camera_matrix;
+  fsip["Distortion_Coefficients"] >> dist_coeffs;
+
+  FileStorage fsep(argv[3], FileStorage::READ);
   if(!fsep.isOpened())
   {
     std::cerr << "Parameter file could not be opened." << std::endl;
     return -1;
   }
-  //fsep["RVec"] >> rvec;
-  //fsep["TVec"] >> tvec;
-*/
+  fsep["RVec"] >> rvec;
+  fsep["TVec"] >> tvec;
+
   while(1)
   {
     Mat frame;
     cap >> frame;
     if(stiggi.length() == 1) writie << frame;
-    find_lines(&frame);
+    find_lines(&frame, camera_matrix, dist_coeffs, rvec, tvec);
     
 
     imshow("frame", frame);

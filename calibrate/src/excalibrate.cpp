@@ -2,6 +2,7 @@
 #include <opencv2/opencv.hpp>
 
 using namespace cv;
+using namespace std;
 
 static int excalibrate(char ** argv, Mat* image)
 {
@@ -37,7 +38,6 @@ static int excalibrate(char ** argv, Mat* image)
 
   // Make some distinctions depending on whether 2 or 3 patterns are being used.
   object_points.insert(object_points.begin(), prov_object_points.begin(), prov_object_points.begin()+atoi(argv[4])*(board_size.height*board_size.width));
-  std::cout << "object points: " << object_points << std::endl;
 
   // Find chessboard corners for all patterns and draw them on original image
   for(int i=0; i<corners.size(); i++)
