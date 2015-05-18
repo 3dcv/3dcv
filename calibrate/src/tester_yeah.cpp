@@ -73,88 +73,37 @@ static Vec3f find_object_pos(vector<Vec3f> lines_world, Vec3f cam_world, Vec3f p
   return object_pos;
 }
 
-static void sloppy_slope(Vec4i& sloppy_line, vector<Vec4i>& lines)
-{
-  double slope_avg;
-  double slope_dev;
-  vector<double> slopes;
-  for(auto line : lines)
-  {
-    slopes.push_back(double(line[3] - line[1])/double(line[2] - line[0]));
-    slope_avg += slopes.back();
-  }
-  slope_avg /= slopes.size();
-
-  for(double slope : slopes)
-  {
-    slope_dev += pow(slope - slope_avg, 2); 
-  }
-  slope_dev = sqrt(slope_dev/slopes.size());
-  for(int i = 0; i < slopes.size(); i++)
-  {
-    if(slopes[i] > slope_avg + slope_dev) 
-    {
-      slopes.erase(slopes.begin() + i);
-      lines.erase(lines.begin() + i);
-      i--;  
-    }
-  }
-  slope_avg = 0;
-  for(double slope : slopes)
-  {
-    slope_avg += slope;
-  }
-  slope_avg /= slopes.size();
-    
-  for(int i = 0; i < lines.size(); i++)
-  {
-    sloppy_line += lines[i];
-  }
-  cout << "lines size:" << lines.size() << endl;
-  sloppy_line[0] /= lines.size();
-  sloppy_line[1] /= lines.size();
-  sloppy_line[2] /= lines.size();
-  sloppy_line[3] /= lines.size();
-} 
-  
-
 static int find_lines(Mat* frame, Mat reference, Mat camera_matrix, Mat dist_coeffs, Mat rvec, Mat tvec, vector<Point2f> corners, vector<Vec3f>* verts)
 {
 
   Mat dst, gray, clonius;
   undistort(*frame, dst, camera_matrix, dist_coeffs);
   clonius = frame->clone();
-  //absdiff(dst, reference, dst);
+  absdiff(dst, reference, dst);
   imshow("after_absdiff", dst);
 
-  vector<int> last_ys;
-  last_ys.resize(2);
   for(int i=0; i<dst.cols; i++)
   {
-//    int count=0;
-//    int y_pos = 0;
+    //Vec3b baer = dst.at<Vec3b>(3,i);
+    //std::cout << (int)dst.at<Vec3b>(3,i).val[0] << std::endl;
+    //std::cout << baer.val[0] << std::endl;
+    //std::cout << (int)baer.val[0] << std::endl;
     for(int j=0; j<dst.rows; j++)
     {
-      dst.at<Vec3b>(j,i).val[0] = max(dst.at<Vec3b>(j,i).val[0] - reference.at<Vec3b>(j,i).val[0], 0);  
-      dst.at<Vec3b>(j,i).val[1] = max(dst.at<Vec3b>(j,i).val[1] - reference.at<Vec3b>(j,i).val[1], 0);  
-      dst.at<Vec3b>(j,i).val[2] = max(dst.at<Vec3b>(j,i).val[2] - reference.at<Vec3b>(j,i).val[2], 0);  
-    
-      frame->at<Vec3b>(j,i) = Vec3b(255, 255, 255);
+      uchar rvl = 255-(dst.at<Vec3b>(j,i).val[2]);
 
       if(dst.at<Vec3b>(j,i).val[2]-35 > dst.at<Vec3b>(j,i).val[0] && dst.at<Vec3b>(j,i).val[2]-35 > dst.at<Vec3b>(j,i).val[1])
       {
-        frame->at<Vec3b>(j,i) = Vec3b(180, 180, 180);
-        //frame->at<Vec3b>(j,i) = 255-dst.at<Vec3b>(j,i).val[2];
-//         count++;
-//         y_pos += j; 
+
+        frame->at<Vec3b>(j,i) = Vec3b(rvl, rvl, rvl);
+      }
+      else
+      {
+        frame->at<Vec3b>(j,i) = Vec3b(255, 255, 255);
       }
     }
-//    if(count > 0) 
-//    {
-//      uchar rvl = 255-(dst.at<Vec3b>(y_pos/count, i).val[2]);
-      //cout << "x: " << i << ", y: " << avg_bubipos << endl;
-//      frame->at<Vec3b>(y_pos/count, i) = Vec3b(rvl, rvl, rvl);
-//    }
+
+    
   }
 
 
@@ -162,89 +111,55 @@ static int find_lines(Mat* frame, Mat reference, Mat camera_matrix, Mat dist_coe
   cvtColor(*frame, gray, CV_BGR2GRAY);
 
 
-  //Laplacian(gray, gray, CV_8UC1, 9);
+  //Laplacian(gray, dst, CV_8UC1);
   Canny(gray, dst, 70, 230, 5, 1);
   //cvtColor(dst, *frame, CV_GRAY2BGR);
-  imshow("ihr schweine", dst);
+
   vector<Vec2f> lines;
   vector<Vec4i> linesP;
-  HoughLinesP( dst, linesP, 1, CV_PI/180, 75, 300, 150 );
+  HoughLinesP( dst, linesP, 1, CV_PI/180, 75, 300, 200 );
 
   vector<Point> img_points;
   // now to select the right lines. assumption for now: there're two lines, as they represent the zero-y and zero-x planes.
   // only those lines will be drawn. trying to handle the occurrence of double lines
   // TODO look forward rather than backward to be able to compare double lines and use the longer one. or rather compare norms of the respective points instead of those of the entire lines
-//  for(int i=0; i<linesP.size(); i++) 
-//  {
-//    Vec4i l = linesP[i];
-//    line(*frame, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,255,0), 1, CV_AA);
-//    bool good = 1;
-//    cout << "pre found line " << i << ": " << linesP[i] << endl;
-//    for(int j=i-1; j>=0; j--)
-//    {
-//      if(norm(linesP[j]-linesP[i]) < 700) { good = 0; break;}
-//    }
-//    if(good)
-//    {
-//      if((l[0]<frame->cols*0.3 && l[2] <frame->cols*0.3) || (l[0]>frame->cols*0.7 && l[2]>frame->cols*0.7) || l[2]-l[0] < frame->cols/7
-//        || (i>0 && norm(linesP[i]-linesP[i-1]) < 800))
-//      {
-//        good = 0;
-//      }
-//    }
-//    if(!good) { linesP.erase(linesP.begin()+i); i--; }
-//    else
-//    {
-//      line(*frame, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 1, CV_AA);
-//    }
-//  }
-  vector<Vec4i> cool_lines1, cool_lines2;
   for(int i=0; i<linesP.size(); i++) 
   {
-    Vec4i l = linesP[i];
-    line(*frame, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,255,0), 1, CV_AA);
     bool good = 1;
     cout << "pre found line " << i << ": " << linesP[i] << endl;
-    if((l[0]<frame->cols*0.3 && l[2] <frame->cols*0.3) || (l[0]>frame->cols*0.7 && l[2]>frame->cols*0.7) || l[2]-l[0] < frame->cols/7)
+    Vec4i l = linesP[i];
+    for(int j=i-1; j>=0; j--)
     {
-      continue;
+      if(norm(linesP[j]-linesP[i]) < 700) { good = 0; break;}
     }
-/*
-    if(cool_lines1.size() == 0) 
-    { 
-      if(l[0]
-      cool_lines1.push_back(linesP[i]); 
-      line(*frame, Point(linesP[i][0], linesP[i][1]), Point(linesP[i][2], linesP[i][3]), Scalar(0,200,200), 2, CV_AA);
-      continue;
+    if(good)
+    {
+      if((l[0]<frame->cols*0.3 && l[2] <frame->cols*0.3) || (l[0]>frame->cols*0.7 && l[2]>frame->cols*0.7) || l[2]-l[0] < frame->cols/7
+        || (i>0 && norm(linesP[i]-linesP[i-1]) < 800))
+      {
+        good = 0;
+      }
     }
-*/
-    //if(norm(l-cool_lines1[0]) < 800 && l[0] < frame->cols*0.33) { cool_lines1.push_back(l); continue;}
-    if(l[0] < frame->cols*0.29) { cool_lines1.push_back(l);}
-    else if(l[2] > frame->cols*0.71) { cool_lines2.push_back(l); }
-
+    if(!good) { linesP.erase(linesP.begin()+i); i--; }
+    else
+    {
+      line(*frame, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 3, CV_AA);
+    }
   }
-  if(cool_lines1.size() > 0 && cool_lines2.size() > 0)
-  {
-   Vec4i sloppy_line1;
-   Vec4i sloppy_line2;
-   sloppy_slope(sloppy_line1, cool_lines1);
-   sloppy_slope(sloppy_line2, cool_lines2);
-   line(*frame, Point(sloppy_line1[0],sloppy_line1[1]), Point(sloppy_line1[2], sloppy_line1[3]), Scalar(255,0,0), 1, CV_AA);
-   line(*frame, Point(sloppy_line2[0],sloppy_line2[1]), Point(sloppy_line2[2], sloppy_line2[3]), Scalar(0,0,255), 1, CV_AA);
-
-
-  //line(*frame, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 1, CV_AA);
   // if there are exactly two lines left, keep working with the frame. otherwise do nothing. there are plenty more frames in the sea
 
-
+  cout << "linesP size " << linesP.size() << endl;
+  if(linesP.size() == 2)
+  {
     //*frame = clonius.clone();
     vector<Point3f> hom_lines, hom_corners, orig, hom_objs;
     vector<Point2f> img_points;
-    img_points.push_back(Point(sloppy_line1[0], sloppy_line1[1]));
-    img_points.push_back(Point(sloppy_line1[2], sloppy_line1[3]));
-    img_points.push_back(Point(sloppy_line2[0], sloppy_line2[1]));
-    img_points.push_back(Point(sloppy_line2[2], sloppy_line2[3]));
-    cout << sloppy_line1 << endl << sloppy_line2 << endl << endl;
+    img_points.push_back(Point(linesP[0][0], linesP[0][1]));
+    img_points.push_back(Point(linesP[0][2], linesP[0][3]));
+    img_points.push_back(Point(linesP[1][0], linesP[1][1]));
+    img_points.push_back(Point(linesP[1][2], linesP[1][3]));
+    cout << linesP[0] << endl << linesP[1] << endl << endl;
+    cout << "norm " << norm(linesP[0]-linesP[1]) << endl;
     convertPointsToHomogeneous(img_points, hom_lines);
     //convertPointsToHomogeneous(corners, hom_corners);
     
@@ -271,33 +186,52 @@ static int find_lines(Mat* frame, Mat reference, Mat camera_matrix, Mat dist_coe
       bert2.x = bert(0);
       bert2.y = bert(1);
       bert2.z = bert(2);
+      //cout << bert << endl;
+      //cout << hom_lines[0] << endl;
+
+
+      //cout << "profit: " << to3D*bert2<< endl;
+      
 
       bubi.push_back(Point3f(to3D*bert2));
       //cout << "fett normiert. alter. " << norm(bubi[0]) << endl;
 
+
       bubi[i] = identify_plane_coord(cam_world_pos, Point3f(bubi[i][0], bubi[i][1], bubi[i][2]));
       cout << "yeah! " << bubi[i] << endl;
 
+
+  //    projectPoints(bubi, rvec, tvec, camera_matrix, dist_coeffs, image_points, noArray(), 0);
+  //    circle(*frame, image_points[0], 75, 250, 2, 8, 0);
+  //    cout << "profit 2: " << bubi[0] << endl;
     }
     vector<Point2f> image_points;
     projectPoints(bubi, rvec, tvec, camera_matrix, dist_coeffs, image_points, noArray(), 0);
 
     //circle(*frame, image_points[0], 30, 250, 1, 8, 0);
+    Mat horst, cannyhorst;
+    
+    cvtColor(*frame, horst, CV_BGR2GRAY);
+    Canny(horst, cannyhorst, 70, 230, 5, 1);
 
     vector<Point2f> obj_img_points;
-    for(int i=sloppy_line1[2]+1; i<sloppy_line2[0]; i++)
+    if(linesP[0][2] > linesP[1][0])
     {
-      int count = 0, y_pos = 0;
-      for(int j=max(0, sloppy_line1[3]-50); j<min(frame->rows, sloppy_line2[3]+50); j++)
+      Vec4i tmp = linesP[0];
+      linesP[0] = linesP[1];
+      linesP[1] = tmp;
+    }
+    for(int i=linesP[0][2]+1; i<linesP[1][0]; i++)
+    {
+      //for(int j=0; j<frame->rows; j++)
+      for(int j=max(0, linesP[0][3]-50); j<min(frame->rows, linesP[0][3]+50); j++)
       {
        //printf("frami %u", frame->at<Vec3b>(j,i).val[2]); 
         if(frame->at<Vec3b>(j,i).val[2] < 200)
         {
-          count ++; y_pos += j; 
+          obj_img_points.push_back(Point2f(i,j));
         }
       }
-      cout << "count count: " << count << endl;
-      if(count > 0) { obj_img_points.push_back(Point2f(i,y_pos/count));  rectangle(*frame, Point2f(i,y_pos/count), Point2f(i,y_pos/count), 0, 1, 8, 0); }
     }
     cout << "obj_img_points size: " << obj_img_points.size() << endl;
     if(obj_img_points.size() > 0) convertPointsToHomogeneous(obj_img_points, hom_objs);
@@ -356,6 +290,10 @@ int main(int argc, char** argv)
   baer.push_back(Vec3f(0.0, 0, 19.34));
   //write_ply(&baer, (char*)"../config/shit");
 
+  cout << "norm x: " << norm(Point3f(0-0.655, -0.001-0.319, 0.341-0.66)) << endl;
+  cout << "norm y: " << norm(Point3f(0.003-0.655, -0.319, 0.343-0.436)) << endl;
+
+
   // Read intrinsic and extrinsic parameters from config files
   FileStorage fsip(argv[2], FileStorage::READ);
   if(!fsip.isOpened())
@@ -384,16 +322,15 @@ int main(int argc, char** argv)
     cap >> frame;
     if(stiggi.length() == 1) writie << frame;
     int key = waitKey(30);
-
-    //if (key == 1048608) 
-    find_lines(&frame, reference_undist, camera_matrix, dist_coeffs, rvec, tvec, corners, &verts);
     imshow("frame", frame);
+    if (key == 1048608) 
+    find_lines(&frame, reference_undist, camera_matrix, dist_coeffs, rvec, tvec, corners, &verts);
 
-    if(key == 1048603)
+    else if(key == 1048603)
     {
        cap.release(); if(stiggi.length() == 1) writie.release(); write_ply(&verts, (char*)"../config/shit"); return -1;
     }
   }
 
-}
 
+}

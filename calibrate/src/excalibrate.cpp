@@ -91,7 +91,7 @@ static int excalibrate(char ** argv, Mat* image)
       chained_corners.insert(chained_corners.begin()+corners[0].size(), corners[2].begin(), corners[2].end());
     }
   }
-  
+
   // Calculate extrinsic parameters rvec and tvec from corresponding 3D and image points
   solvePnP(object_points, chained_corners, camera_matrix, dist_coeffs, rvec, tvec, 0, CV_ITERATIVE); 
   std::cout << "rvec: " << rvec << std::endl;
@@ -132,6 +132,7 @@ static int excalibrate(char ** argv, Mat* image)
   FileStorage fs("../config/extrinsic_params", FileStorage::WRITE);
   fs << "RVec" << rvec;
   fs << "TVec" << tvec;
+  fs << "corners" << chained_corners;
   fs.release();
 }
 

@@ -110,7 +110,6 @@ static void sloppy_slope(Vec4i& sloppy_line, vector<Vec4i>& lines)
   {
     sloppy_line += lines[i];
   }
-  cout << "lines size:" << lines.size() << endl;
   sloppy_line[0] /= lines.size();
   sloppy_line[1] /= lines.size();
   sloppy_line[2] /= lines.size();
@@ -168,7 +167,7 @@ static int find_lines(Mat* frame, Mat reference, Mat camera_matrix, Mat dist_coe
   imshow("ihr schweine", dst);
   vector<Vec2f> lines;
   vector<Vec4i> linesP;
-  HoughLinesP( dst, linesP, 1, CV_PI/180, 75, 300, 150 );
+  HoughLinesP( dst, linesP, 1, CV_PI/180, 65, 400, 150 );
 
   vector<Point> img_points;
   // now to select the right lines. assumption for now: there're two lines, as they represent the zero-y and zero-x planes.
@@ -240,11 +239,12 @@ static int find_lines(Mat* frame, Mat reference, Mat camera_matrix, Mat dist_coe
     //*frame = clonius.clone();
     vector<Point3f> hom_lines, hom_corners, orig, hom_objs;
     vector<Point2f> img_points;
-    img_points.push_back(Point(sloppy_line1[0], sloppy_line1[1]));
-    img_points.push_back(Point(sloppy_line1[2], sloppy_line1[3]));
-    img_points.push_back(Point(sloppy_line2[0], sloppy_line2[1]));
-    img_points.push_back(Point(sloppy_line2[2], sloppy_line2[3]));
-    cout << sloppy_line1 << endl << sloppy_line2 << endl << endl;
+    img_points.push_back(Point(linesP[0][0], linesP[0][1]));
+    img_points.push_back(Point(linesP[0][2], linesP[0][3]));
+    img_points.push_back(Point(linesP[1][0], linesP[1][1]));
+    img_points.push_back(Point(linesP[1][2], linesP[1][3]));
+    cout << linesP[0] << endl << linesP[1] << endl << endl;
+    cout << "norm " << norm(linesP[0]-linesP[1]) << endl;
     convertPointsToHomogeneous(img_points, hom_lines);
     //convertPointsToHomogeneous(corners, hom_corners);
     
@@ -285,10 +285,16 @@ static int find_lines(Mat* frame, Mat reference, Mat camera_matrix, Mat dist_coe
     //circle(*frame, image_points[0], 30, 250, 1, 8, 0);
 
     vector<Point2f> obj_img_points;
-    for(int i=sloppy_line1[2]+1; i<sloppy_line2[0]; i++)
+    if(linesP[0][2] > linesP[1][0])
+    {
+      Vec4i tmp = linesP[0];
+      linesP[0] = linesP[1];
+      linesP[1] = tmp;
+    }
+    for(int i=linesP[0][2]+1; i<linesP[1][0]; i++)
     {
       int count = 0, y_pos = 0;
-      for(int j=max(0, sloppy_line1[3]-50); j<min(frame->rows, sloppy_line2[3]+50); j++)
+      for(int j=max(0, linesP[0][3]-50); j<min(frame->rows, linesP[0][3]+50); j++)
       {
        //printf("frami %u", frame->at<Vec3b>(j,i).val[2]); 
         if(frame->at<Vec3b>(j,i).val[2] < 200)
