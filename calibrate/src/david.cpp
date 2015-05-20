@@ -69,7 +69,6 @@ static Vec3f find_object_pos(vector<Vec3f> lines_world, Vec3f cam_world, Vec3f p
   Vec3f line_dir = cam_world - proj_world;
   float intersect_scalar = (base_vec - cam_world).dot(plane_normal)/line_dir.dot(plane_normal);
   Vec3f object_pos = cam_world + intersect_scalar * line_dir;
-  cout << object_pos << endl;
   return object_pos;
 }
 
@@ -162,7 +161,7 @@ static int find_lines(Mat* frame, Mat reference, Mat camera_matrix, Mat dist_coe
         frame->at<Vec3b>(j,i) = 255-dst.at<Vec3b>(j,i).val[2];
       }
     }
-    imshow("after_absdiff", dst);
+    //imshow("after_absdiff", dst);
   }
 
 
@@ -172,31 +171,6 @@ static int find_lines(Mat* frame, Mat reference, Mat camera_matrix, Mat dist_coe
   vector<Vec4i> linesP;
   HoughLinesP( dst, linesP, 1, CV_PI/180, 75, 300, 150 );
 
-  vector<Point> img_points;
-//  for(int i=0; i<linesP.size(); i++) 
-//  {
-//    Vec4i l = linesP[i];
-//    line(*frame, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,255,0), 1, CV_AA);
-//    bool good = 1;
-//    cout << "pre found line " << i << ": " << linesP[i] << endl;
-//    for(int j=i-1; j>=0; j--)
-//    {
-//      if(norm(linesP[j]-linesP[i]) < 700) { good = 0; break;}
-//    }
-//    if(good)
-//    {
-//      if((l[0]<frame->cols*0.3 && l[2] <frame->cols*0.3) || (l[0]>frame->cols*0.7 && l[2]>frame->cols*0.7) || l[2]-l[0] < frame->cols/7
-//        || (i>0 && norm(linesP[i]-linesP[i-1]) < 800))
-//      {
-//        good = 0;
-//      }
-//    }
-//    if(!good) { linesP.erase(linesP.begin()+i); i--; }
-//    else
-//    {
-//      line(*frame, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 1, CV_AA);
-//    }
-//  }
   vector<Vec4i> cool_lines1, cool_lines2;
   for(int i=0; i<linesP.size(); i++) 
   {
@@ -208,33 +182,21 @@ static int find_lines(Mat* frame, Mat reference, Mat camera_matrix, Mat dist_coe
     {
       continue;
     }
-/*
-    if(cool_lines1.size() == 0) 
-    { 
-      if(l[0]
-      cool_lines1.push_back(linesP[i]); 
-      line(*frame, Point(linesP[i][0], linesP[i][1]), Point(linesP[i][2], linesP[i][3]), Scalar(0,200,200), 2, CV_AA);
-      continue;
-    }
-*/
-    //if(norm(l-cool_lines1[0]) < 800 && l[0] < frame->cols*0.33) { cool_lines1.push_back(l); continue;}
+
     if(l[0] < frame->cols*0.29) { cool_lines1.push_back(l);}
     else if(l[2] > frame->cols*0.71) { cool_lines2.push_back(l); }
 
   }
   if(cool_lines1.size() > 0 && cool_lines2.size() > 0)
   {
-   Vec4i sloppy_line1;
-   Vec4i sloppy_line2;
-   sloppy_slope(sloppy_line1, cool_lines1,1);
-   sloppy_slope(sloppy_line2, cool_lines2,0);
-   line(*frame, Point(sloppy_line1[0],sloppy_line1[1]), Point(sloppy_line1[2], sloppy_line1[3]), Scalar(255,0,0), 1, CV_AA);
-   line(*frame, Point(sloppy_line2[0],sloppy_line2[1]), Point(sloppy_line2[2], sloppy_line2[3]), Scalar(0,0,255), 1, CV_AA);
+    Vec4i sloppy_line1;
+    Vec4i sloppy_line2;
+    sloppy_slope(sloppy_line1, cool_lines1,1);
+    sloppy_slope(sloppy_line2, cool_lines2,0);
+    line(*frame, Point(sloppy_line1[0],sloppy_line1[1]), Point(sloppy_line1[2], sloppy_line1[3]), Scalar(255,0,0), 1, CV_AA);
+    line(*frame, Point(sloppy_line2[0],sloppy_line2[1]), Point(sloppy_line2[2], sloppy_line2[3]), Scalar(0,0,255), 1, CV_AA);
 
-
-  //line(*frame, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 1, CV_AA);
-  // if there are exactly two lines left, keep working with the frame. otherwise do nothing. there are plenty more frames in the sea
-
+    // Project to world coordinates
     vector<Point3f> hom_lines, orig, hom_objs;
     vector<Point2f> img_points;
     img_points.push_back(Point(sloppy_line1[0], sloppy_line1[1]));
@@ -245,10 +207,6 @@ static int find_lines(Mat* frame, Mat reference, Mat camera_matrix, Mat dist_coe
     convertPointsToHomogeneous(img_points, hom_lines);
     
     Matx<float,3,3> cam2(camera_matrix); 
-    //circle(*frame, img_points[0], 25, 5, 1, 8, 0);
-    //circle(*frame, img_points[1], 25, 5, 1, 8, 0);
-    //circle(*frame, img_points[2], 25, 5, 1, 8, 0);
-    //circle(*frame, img_points[3], 25, 5, 1, 8, 0);
     Affine3f rodri((Vec3f)rvec, (Vec3f)tvec);
 
     Affine3f to3D = rodri.inv();
@@ -269,7 +227,6 @@ static int find_lines(Mat* frame, Mat reference, Mat camera_matrix, Mat dist_coe
       bert2.z = bert(2);
 
       bubi.push_back(Point3f(to3D*bert2));
-      //cout << "fett normiert. alter. " << norm(bubi[0]) << endl;
 
       bubi[i] = identify_plane_coord(cam_world_pos, Point3f(bubi[i][0], bubi[i][1], bubi[i][2]));
       cout << "yeah! " << bubi[i] << endl;
@@ -278,22 +235,24 @@ static int find_lines(Mat* frame, Mat reference, Mat camera_matrix, Mat dist_coe
     vector<Point2f> image_points;
     projectPoints(bubi, rvec, tvec, camera_matrix, dist_coeffs, image_points, noArray(), 0);
 
-    //circle(*frame, image_points[0], 30, 250, 1, 8, 0);
-
+    // Identify red image points in between the two lines and project them to world coordinates as well
     vector<Point2f> obj_img_points;
     for(int i=sloppy_line1[2]+1; i<sloppy_line2[0]; i++)
     {
       int count = 0, y_pos = 0;
       for(int j=max(0, sloppy_line1[3]-150); j<min(frame->rows, sloppy_line1[3]+150); j++)
       {
-       //printf("frami %u", frame->at<Vec3b>(j,i).val[2]); 
         if(frame->at<Vec3b>(j,i).val[2] < 200)
         {
           count ++; y_pos += j; 
         }
       }
       cout << "count count: " << count << endl;
-      if(count > 0) { obj_img_points.push_back(Point2f(i,y_pos/count));  rectangle(*frame, Point2f(i,y_pos/count), Point2f(i,y_pos/count), 0, 1, 8, 0); }
+      if(count > 0) 
+      { 
+        obj_img_points.push_back(Point2f(i,y_pos/count));  
+        rectangle(*frame, Point2f(i,y_pos/count), Point2f(i,y_pos/count), 0, 1, 8, 0); 
+      }
     }
     cout << "obj_img_points size: " << obj_img_points.size() << endl;
     if(obj_img_points.size() > 0) convertPointsToHomogeneous(obj_img_points, hom_objs);
@@ -308,6 +267,7 @@ static int find_lines(Mat* frame, Mat reference, Mat camera_matrix, Mat dist_coe
       
       bubibert.push_back(identify_plane_coord(cam_world_pos, to3D*bert2));
       burt.push_back(find_object_pos(bubi, cam_world_pos, bubibert[i]));
+      // Add found points to vector containing vertices that are eventually written to the .ply file
       verts->push_back(burt[i]);
     }
     vector<Point2f> img_ps;
@@ -320,7 +280,7 @@ int main(int argc, char** argv)
 {
   if(argc < 4)
   {
-    cerr << "Not enough params. Use as: \n./tester [CAPTURE DEVICE (cam or video file)] [INTRINSIC PARAMS FILE] [EXTRINSIC PARAMS FILE]"
+    cerr << "Not enough params. Use as: \n./david [CAPTURE DEVICE (cam or video file)] [INTRINSIC PARAMS FILE] [EXTRINSIC PARAMS FILE]"
          << endl;
     return -1;
   }
@@ -376,7 +336,7 @@ int main(int argc, char** argv)
     find_lines(&frame, reference_undist, camera_matrix, dist_coeffs, rvec, tvec, &verts);
     imshow("frame", frame);
 
-    if(key == 1048603)
+    if(key == 1048603) // ESC
     {
        cap.release(); if(stiggi.length() == 1) writie.release(); write_ply(&verts, (char*)"../config/shit"); return 1;
     }
