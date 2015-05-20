@@ -268,7 +268,7 @@ static int find_lines(Mat* frame, Mat reference, Mat camera_matrix, Mat dist_coe
       bubibert.push_back(identify_plane_coord(cam_world_pos, to3D*bert2));
       burt.push_back(find_object_pos(bubi, cam_world_pos, bubibert[i]));
       // Add found points to vector containing vertices that are eventually written to the .ply file
-      verts->push_back(burt[i]);
+      if (burt[i][0] > 0 && burt[i][1] > 0 && burt[i][2] > 0) verts->push_back(burt[i]);
     }
     vector<Point2f> img_ps;
     if(obj_img_points.size() > 0) projectPoints(burt, rvec, tvec, camera_matrix, dist_coeffs, img_ps, noArray(), 0);
@@ -338,7 +338,7 @@ int main(int argc, char** argv)
 
     if(key == 1048603) // ESC
     {
-       cap.release(); if(stiggi.length() == 1) writie.release(); write_ply(&verts, (char*)"../config/shit"); return 1;
+       cap.release(); if(stiggi.length() == 1) writie.release(); write_ply(&verts, (char*)"../clouds/shit"); return 1;
     }
   }
 
