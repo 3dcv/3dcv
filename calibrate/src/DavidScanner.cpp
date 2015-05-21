@@ -6,8 +6,9 @@ DavidScanner::DavidScanner(Mat& reference_undist, Mat& camera_matrix,
 						   camera_matrix_(camera_matrix), 
 						   dist_coeffs_(dist_coeffs), rvec_(rvec), tvec_(tvec)
 {
+	// Convert rvec and tvec to affine transformation
 	 Affine3f rodri((Vec3f)rvec_, (Vec3f)tvec_);
-     Affine3f to3D_ = rodri.inv();
+     to3D_ = rodri.inv();
     // Calculate camera position in world coordinates
     cam_world_pos_ = Point3f(to3D_*Point3f(0, 0, 0));
 }
@@ -45,12 +46,13 @@ Vec3f DavidScanner::identifyPlaneCoord(Point3f proj)
 {
   Point3f x,y,z, min, sp = cam_world_pos_-proj;
   double s, min_dist = 10;
+  // check on which axis the point should be projected
   if(proj.x < 0)
   {
     s = cam_world_pos_.x/sp.x;
     x = Point3f(0, cam_world_pos_.y - s * sp.y, cam_world_pos_.z - s * sp.z);
     min_dist = norm(cam_world_pos_-x);
-    min = x;
+    min = x;	
   }
   if(proj.y < 0)
   {
@@ -64,19 +66,23 @@ Vec3f DavidScanner::identifyPlaneCoord(Point3f proj)
     z = Point3f(cam_world_pos_.x - s * sp.x, cam_world_pos_.y - s * sp.y, 0);
     if(norm(cam_world_pos_-z) < min_dist) { min_dist = norm(cam_world_pos_-z); min = z; }
   }
+  // return point on axis plane
   return Vec3f(min.x, min.y, min.z);
 }
 
 Vec3f DavidScanner::findObjectPos(vector<Vec3f> lines_world, Vec3f cam_world, Vec3f proj_world)
 {
+  // calculate laser plane normal
   Vec3f dir_vec1 = lines_world[0] - lines_world[1];
   Vec3f dir_vec2 = lines_world[2] - lines_world[3];
   Vec3f base_vec(lines_world[0]);
   Vec3f plane_normal = dir_vec1.cross(dir_vec2);
   
+  // calculate object laser line intersection with laser plane
   Vec3f line_dir = cam_world - proj_world;
   float intersect_scalar = (base_vec - cam_world).dot(plane_normal)/line_dir.dot(plane_normal);
   Vec3f object_pos = cam_world + intersect_scalar * line_dir;
+  // return object position
   return object_pos;
 }
 
@@ -85,6 +91,7 @@ void DavidScanner::gaussianSlopeAvg(Vec4i& avg_line, vector<Vec4i>& lines, bool 
   double slope_avg;
   double slope_dev;
   vector<double> slopes;
+  // average
   for(auto line : lines)
   {
     slopes.push_back(double(line[3] - line[1])/double(line[2] - line[0]));
@@ -92,11 +99,14 @@ void DavidScanner::gaussianSlopeAvg(Vec4i& avg_line, vector<Vec4i>& lines, bool 
   }
   slope_avg /= slopes.size();
 
+  // standard deviation
   for(double slope : slopes)
   {
     slope_dev += pow(slope - slope_avg, 2); 
   }
   slope_dev = sqrt(slope_dev/slopes.size());
+  
+  // gaussian filter
   for(int i = 0; i < slopes.size(); i++)
   {
     if(slopes[i] > slope_avg + slope_dev) 
@@ -113,7 +123,7 @@ void DavidScanner::gaussianSlopeAvg(Vec4i& avg_line, vector<Vec4i>& lines, bool 
   }
   slope_avg /= slopes.size();
   
-  
+  // avg all lines
   int line_xtreme;
   if(is_sloppy_site_left)
      line_xtreme = lines[0][2];
@@ -242,6 +252,7 @@ int DavidScanner::scan(Mat& frame)
 
     // Identify red image points in between the two lines and project them to world coordinates as well
     vector<Point2f> obj_img_points;
+    // identify all laser object points
     for(int i=left_line[2]+1; i<right_line[0]; i++)
     {
       int count = 0, y_pos = 0;
@@ -260,9 +271,11 @@ int DavidScanner::scan(Mat& frame)
       }
     }
     cout << "obj_img_points size: " << obj_img_points.size() << endl;
+    // Homogeneous all object points
     if(obj_img_points.size() > 0) convertPointsToHomogeneous(obj_img_points, hom_objs);
     vector<Point3f> world_point;
     vector<Vec3f> world_3dpoints;
+    // convert all object points to 3d world coodrinates by their intersection with the laser plane
     for(int i=0; i<hom_objs.size(); i++)
     {
       Matx<float,3,1> hom2(hom_objs[i]); 

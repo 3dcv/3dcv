@@ -30,15 +30,31 @@ public:
 
     /**
      * @brief	Puts the scanned vertices in a ply file
+     * @param string name of file
+     * @return succsess
      */
     int writePLY(string ply_string);
 	
+	 /**
+     * @brief david scanning
+     */
 	int scan(Mat& frame);
 
 private:
 
+    /**
+     * @brief calculates the intersection between a line coordinate and an axis
+     */
 	Vec3f identifyPlaneCoord(Point3f proj);
+	
+	/**
+     * @brief calculates an object point in world coordinates by its intersection with the laser plane 
+     */
 	Vec3f findObjectPos(vector<Vec3f> lines_world, Vec3f cam_world, Vec3f proj_world);
+	
+	/**
+     * @brief average filter for laser lines
+     */
 	void gaussianSlopeAvg(Vec4i& avg_line, vector<Vec4i>& lines, bool is_sloppy_site_left);
 
     Mat reference_undist_; 
