@@ -14,10 +14,14 @@ if(Boost_found)
   include_directories(${Boost_INCLUDE_DIR})
 endif(Boost_found)
 
+include_directories(${CMAKE_SOURCE_DIR})
+include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(${CMAKE_SOURCE_DIR}/src)
+
 add_executable(calibrate src/calibrate.cpp)
 add_executable(excalibrate src/excalibrate.cpp)
-add_executable(tester src/tester.cpp)
+add_executable(DavidScanner src/DavidMain.cpp src/DavidScanner.cpp)
 
 target_link_libraries(calibrate ${OpenCV_LIBS} ${Boost_LIBS})
 target_link_libraries(excalibrate ${OpenCV_LIBS} ${Boost_LIBS})
-target_link_libraries(tester ${OpenCV_LIBS} ${Boost_LIBS})
+target_link_libraries(DavidScanner ${OpenCV_LIBS} ${Boost_LIBS})
