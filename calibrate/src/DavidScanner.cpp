@@ -282,7 +282,7 @@ int DavidScanner::scan(Mat& frame)
       Matx<float,3,1> world_point2; 
       world_point2 = cam_mat.inv()*hom2;
       Point3f world_point3 = Point3f(world_point2(0), world_point2(1), world_point2(2));
-      
+      // get world coordinates on axis plane
       world_point.push_back(identifyPlaneCoord(to3D_*world_point3));
       world_3dpoints.push_back(findObjectPos(world_3dlines, cam_world_pos_, world_point[i]));
       // Add found points to vector containing vertices that are eventually written to the .ply file
