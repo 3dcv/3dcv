@@ -1,9 +1,42 @@
 #include "Normal_Estimator.hpp"
 #include "KDTree.hpp"
 #include <pcl/visualization/cloud_viewer.h>
+#include <pcl/kdtree/kdtree_flann.h>
+#include <opencv2/core/core.hpp>
 
 namespace po = boost::program_options;
 using namespace std;
+
+struct ScopeTime
+{
+	const char* name;
+	double start;
+	ScopeTime(const char *name_) : name(name_)
+	{
+		start = (double)cv::getTickCount();
+	}
+	~ScopeTime()
+	{
+		double time_ms =  ((double)cv::getTickCount() - start)*1000.0/cv::getTickFrequency();
+		std::cout << "Time(" << name << ") = " << time_ms << "ms" << std::endl;
+	}
+	double getTime()
+	{
+		return ((double)cv::getTickCount() - start)*1000.0/cv::getTickFrequency();
+	}
+};
+
+void pclFLANN(pcl::PointCloud<pcl::PointXYZ>::Ptr  cloud, int kn)
+{
+	ScopeTime flann_time("FLANN Performance");
+	KdTreeFLANN<pcl::PointXYZ> kdtree;
+	kdtree.setInputCloud (cloud);
+
+	std::vector<int> pointIdxNKNSearch(kn);
+	std::vector<float> pointNKNSquaredDistance(kn);
+	for(int i = 0; i < cloud->width; i++)
+		kdtree.nearestKSearch ((*cloud)[i], kn, pointIdxNKNSearch, pointNKNSquaredDistance);   
+}
 
 int main(int argc, char** argv)
 {
@@ -76,33 +109,19 @@ int main(int argc, char** argv)
   PLYReader ply_reader;
   PointCloud<PointXYZ> cloud;
   ply_reader.read(ply_file, cloud);
-  PointXYZ min,max;
-  getMinMax3D(cloud, min, max);
-  cout << "min " << min << " max " << max << endl;
-  //for(int i=0; i<7; i++) cout << cloud[i] << endl;
-  KDTree ent(cloud, cloud.width);
-  vector<PointXYZ*> rnn;
-  map<double, PointXYZ*> knn;
-  ent.FindRClosest(&cloud[250], 0.004, rnn);
-  cout << "Neighbors incoming" << endl;
-  //for(auto p : knn)
-    //cout << *(p.second) << " dist: " << euclideanDistance(cloud[250], *(p.second)) << endl;
-  //for(auto p : rnn)
-  //  cout << *p << " dist: " << euclideanDistance(cloud[250], *p) << endl;
-  //cout << "Total: " << rnn.size() << endl;
-  //cout << "ent depth: " << KDTree::depth << endl;
   const pcl::PointCloud<pcl::Normal>::Ptr cloud_normals (new PointCloud<pcl::Normal>());
-  const pcl::PointCloud<PointXYZ>::Ptr cloudPtr (&cloud);
+  const pcl::PointCloud<PointXYZ>::Ptr cloudPtr (new PointCloud<PointXYZ>(cloud));
+  // FLANN Performance test
+  pclFLANN(cloudPtr, kn);
   Normal_Estimator normi(cloud, kn, ki, px, py, pz); 
-  normi.estimate_normals(cloud_normals);
-  visualization::PCLVisualizer viewer("PCL Viewer");
-  viewer.setBackgroundColor (0.0, 0.0, 0.5);
-       
-  viewer.addPointCloudNormals<pcl::PointXYZ,pcl::Normal>(cloudPtr, cloud_normals);
-        while (!viewer.wasStopped ())
-        {
-                viewer.spinOnce ();
-        } 
-  //normi.improve_normals();
-  //normi.write_normals_to_ply();
+  // Normi Performance test
+  {
+    ScopeTime norm_time("Normi Performance");
+    normi.estimate_normals(cloud_normals);
+  }
+  normi.average_normals(cloud_normals);
+  PointCloud<pcl::PointNormal>::Ptr cloud_with_normals (new PointCloud<PointNormal>);
+  concatenateFields (*cloudPtr, *cloud_normals, *cloud_with_normals);
+  PLYWriter writer;
+  writer.write("meshi.ply", *cloud_with_normals);
 }

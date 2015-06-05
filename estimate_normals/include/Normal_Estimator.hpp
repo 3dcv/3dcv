@@ -21,16 +21,17 @@ public:
 
   ~Normal_Estimator();
 
-  int estimate_normals(PointCloud<pcl::Normal>::Ptr cloud_normals);
-  //void compute_pca(Vector3f);
+  void estimate_normals(PointCloud<pcl::Normal>::Ptr cloud_normals);
+  void average_normals(PointCloud<Normal>::Ptr cloud_normals);
 
 private:
   PointCloud<PointXYZ> cloud_;
-  KDTree ent_;
+  KDTree<PointXYZ> ent_;
   Vector3d orient_pos_;
   int kn_, ki_;
 
-  void compute_pca(int vertex, VectorXd true_normal);
+  void compute_pca(int vertex, VectorXd& true_normal);
+  void compute_average(int vertex);
 };
 
 #endif // NORMAL_ESTIMATOR_HPP

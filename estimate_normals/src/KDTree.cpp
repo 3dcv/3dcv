@@ -1,57 +1,20 @@
 #include <KDTree.hpp>
 
-int KDTree::depth = 0;
-vector<PointXYZ*> KDTree::closest;
-double KDTree::closest_d2 = 0;
-PointXYZ* KDTree::p = NULL;
-int KDTree::kn = 0;
-map<double, PointXYZ*> KDTree::kclosest;
-  
-KDTree::KDTree(PointCloud<PointXYZ> &pts, int n)
-{
-  //cout << "gross! " << pts.width << endl;
-  //cout << "tief! " << ++depth << endl;
-  if(n <= 8)
-  {
-    npts = n;
-    if(n > 0) 
-      for(int i=0; i< pts.width; i++) leaf.p[i] = pts.points[i];
-      depth++; 
-    return;
-  }
-  npts = 0;
-  
-  PointXYZ min, max;
-  getMinMax3D(pts, min, max);
-  node.center = PointXYZ((max.x + min.x)/2, (max.y + min.y)/2, (max.z + min.z)/2);
-  node.bounds = PointXYZ(max.x - min.x, max.y - min.y, max.z - min.z); 
+template<typename PointT>
+int KDTree<PointT>::depth = 0;
+template<typename PointT>
+vector<PointT*> KDTree<PointT>::closest;
+template<typename PointT>
+double KDTree<PointT>::closest_d2 = 0;
+template<typename PointT>
+PointT* KDTree<PointT>::p = NULL;
+template<typename PointT>
+int KDTree<PointT>::kn = 0;
+template<typename PointT>
+map<double, PointT*> KDTree<PointT>::kclosest;
 
-  if (node.bounds.x > node.bounds.y)
-    if (node.bounds.x > node.bounds.z) node.splitaxis = 0;
-    else node.splitaxis = 2;
-  else
-    if (node.bounds.y > node.bounds.z) node.splitaxis = 1;
-    else node.splitaxis = 2;
-  double splitval = node.center.data[node.splitaxis];
-  vector<int> left, right;
-  for(int i=0; i<pts.width; i++)
-  {
-    if(pts.points[i].data[node.splitaxis] < splitval) left.push_back(i);
-    else right.push_back(i);
-  }
-  PointCloud<PointXYZ> left_points, right_points;
-  copyPointCloud(pts, left, left_points);
-  copyPointCloud(pts, right, right_points);
-
-  node.child1 = new KDTree(left_points, left.size());
-  node.child2 = new KDTree(right_points, right.size());
-}
-
-KDTree::~KDTree()
-{
-}
-
-void KDTree::FindRClosest(PointXYZ *_p, double maxdist2, vector<PointXYZ*> &nn)
+template<typename PointT>
+void KDTree<PointT>::FindRClosest(PointT *_p, double maxdist2, vector<PointT*> &nn)
 {
   //closest = NULL;
   closest_d2 = pow(maxdist2,2);
@@ -60,7 +23,8 @@ void KDTree::FindRClosest(PointXYZ *_p, double maxdist2, vector<PointXYZ*> &nn)
   nn = closest;
 }
 
-void KDTree::_FindRClosest()
+template<typename PointT>
+void KDTree<PointT>::_FindRClosest()
 {
   if(npts)
   {
@@ -94,7 +58,8 @@ void KDTree::_FindRClosest()
 
 }
 
-void KDTree::FindKClosest(PointXYZ *_p, int kneigh, map<double, PointXYZ*> &nn)
+template<typename PointT>
+void KDTree<PointT>::FindKClosest(PointT *_p, int kneigh, map<double, PointT*> &nn)
 {
   closest_d2 = 10000;
   p = _p;
@@ -103,7 +68,8 @@ void KDTree::FindKClosest(PointXYZ *_p, int kneigh, map<double, PointXYZ*> &nn)
   nn = kclosest;
 }
 
-void KDTree::_FindKClosest()
+template<typename PointT>
+void KDTree<PointT>::_FindKClosest()
 {
   if(npts)
   {
@@ -114,7 +80,7 @@ void KDTree::_FindKClosest()
         double dist = squaredEuclideanDistance(*p, leaf.p[i]);
         if(dist > 0.00001)
         {
-           kclosest.insert(pair<double, PointXYZ*>(dist, &leaf.p[i]));
+           kclosest.insert(pair<double, PointT*>(dist, &leaf.p[i]));
            //closest_d2 = klosest.cend()-->first;
         }
       }
@@ -125,7 +91,7 @@ void KDTree::_FindKClosest()
         if(dist < kclosest.cend()--->first && dist > 0.00001)
         {
           kclosest.erase(last);
-          kclosest.insert(pair<double, PointXYZ*>(dist, &leaf.p[i]));
+          kclosest.insert(pair<double, PointT*>(dist, &leaf.p[i]));
           closest_d2 = kclosest.cend()--->first;
         }
       }
