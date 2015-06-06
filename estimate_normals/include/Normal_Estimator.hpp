@@ -23,6 +23,7 @@ public:
 
   void estimate_normals(PointCloud<pcl::Normal>::Ptr cloud_normals);
   void average_normals(PointCloud<Normal>::Ptr cloud_normals);
+  void knnPerformance();
 
 private:
   PointCloud<PointXYZ> cloud_;
@@ -35,3 +36,4 @@ private:
 };
 
 #endif // NORMAL_ESTIMATOR_HPP
+

@@ -35,6 +35,15 @@ void Normal_Estimator::estimate_normals(PointCloud<pcl::Normal>::Ptr cloud_norma
 
 }
 
+void Normal_Estimator::knnPerformance()
+{
+  for(size_t i=0; i<cloud_.width; i++)
+  {
+    map<double, int> knn;
+    ent_.FindKClosest(i, kn_, knn);
+  }
+}
+
 void Normal_Estimator::average_normals(PointCloud<Normal>::Ptr cloud_normals)
 {
   cout << "Averaging Normals ..." << endl;

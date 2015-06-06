@@ -117,8 +117,9 @@ int main(int argc, char** argv)
   // Normi Performance test
   {
     ScopeTime norm_time("Normi Performance");
-    normi.estimate_normals(cloud_normals);
+    normi.knnPerformance(); 
   }
+  normi.estimate_normals(cloud_normals);
   normi.average_normals(cloud_normals);
   PointCloud<pcl::PointNormal>::Ptr cloud_with_normals (new PointCloud<PointNormal>);
   concatenateFields (*cloudPtr, *cloud_normals, *cloud_with_normals);
