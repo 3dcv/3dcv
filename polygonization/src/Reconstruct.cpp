@@ -78,9 +78,8 @@ int main(int argc, char** argv)
   PLYReader ply_reader;
   ply_reader.read(ply_file, cloud);
   PointCloud<PointXYZ>::Ptr cloudPtr (new PointCloud<PointXYZ>(cloud));
-  DistanceFunction disti(cloudPtr, kn, ki, 1, 1, 1);
+  DistanceFunction disti(cloudPtr, kn, ki, kd, 1, 1, 1);
   Octree octo(ply_file, v, disti);
   octo.reconstruct();
-  //cout << "dist : " << disti.distance(0.2, 0.3, 0.4, 1); 
   return 0;
 }

@@ -41,7 +41,7 @@ private:
   vector<onode> nodes_;
   PointCloud<PointXYZ> cloud_;
   DistanceFunction dfunk_;
-  vector<Vector3f> verts_; 
+  vector<Vector3d> verts_; 
 };
 
 #endif // Octree

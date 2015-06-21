@@ -14,16 +14,18 @@ using namespace pcl;
 class DistanceFunction {
 
 public:
-  DistanceFunction(PointCloud<pcl::PointXYZ>::Ptr cloud, int kn, int ki, double px, double py, double p);
+  DistanceFunction(PointCloud<pcl::PointXYZ>::Ptr cloud, int kn, int ki, double px, double py, double pz, int kd = 1);
 
   ~DistanceFunction();
 
-  float distance(float x, float y, float z, int k = 1);
+  float distance(float x, float y, float z);
 
 private:
   PointCloud<pcl::PointXYZ>::Ptr cloud_;
   pcl::PointCloud<pcl::Normal>::Ptr cloud_normals_;
   KdTreeFLANN<pcl::PointXYZ> kdtree_;
+
+  int kd_;
 };
 
 #endif // DistanceFunction
