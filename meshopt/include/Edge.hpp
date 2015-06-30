@@ -13,7 +13,7 @@ public:
         {
         } 
 	
-  Edge* next;
+    Edge* next;
 
 	Edge* pair;
 

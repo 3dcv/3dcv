@@ -30,7 +30,8 @@ public:
 	void addTriangle(size_t one, size_t two, size_t three);
   
   void findEdgeNeighbors(size_t face_ind, vector<Face*>& neighbors_inds);
-  void findVertexNeighbors(size_t vert_ind, vector<Vertex*>& neighbors_inds);
+  void findVertexNeighbors(size_t vert_ind, vector<Face*>& neighbors_inds);
+  void printFaces();
 
 	vector<Face*>                                  faces_;
 

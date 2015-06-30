@@ -60,7 +60,7 @@ int main(int argc, char** argv)
         notify(vm);
       }
     }
-    if(!vm.count("input"))
+    if(vm.count("input"))
     {
       cout << "Some non-optional parameters missing. Check help for a list." << endl;
       return 0;
@@ -74,22 +74,25 @@ int main(int argc, char** argv)
   PointCloud<PointXYZ> cloud;
   PolygonMesh pome;
   PLYReader ply_reader;
-  ply_reader.read(ply_file, cloud);
+  //ply_reader.read(ply_file, cloud);
   ply_reader.read(ply_file, pome);
+  fromPCLPointCloud2(pome.cloud, cloud);
   PointCloud<PointXYZ>::Ptr cloudPtr (new PointCloud<PointXYZ>(cloud));
   HMesh hame;
-  for (int i=0; i< pome.cloud.width; i++)
+  for (int i=0; i< cloud.width; i++)
   {
-    hame.addVertex(Vertex(pome.cloud[i].x, pome.cloud[i].y, pome.cloud[i].z));
+    hame.addVertex(Vertex(cloud[i].x, cloud[i].y, cloud[i].z));
   }
   for (int i=0; i< pome.polygons.size(); i++)
   {
     vector<size_t> indices(3);
-    for(int j = 0; j<pome.polygons[i].size();j++)
+    for(int j = 0; j < pome.polygons[i].vertices.size();j++)
     {
-      indices[j] = pome.polygons[i][j];
+      indices[j] = pome.polygons[i].vertices[j];
     }
     hame.addTriangle(indices[0], indices[1], indices[2]);
   }
+  hame.printFaces();
+  cout << "Ready " << endl;
   return 0;
 }
