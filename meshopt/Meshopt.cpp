@@ -1,5 +1,6 @@
 #include <boost/program_options.hpp>
 #include <stdio.h>
+#include <pcl/PolygonMesh.h>
 #include <pcl/io/ply_io.h>
 #include "Vertex.hpp" 
 #include "Edge.hpp" 
@@ -71,8 +72,24 @@ int main(int argc, char** argv)
     return 0;
   }
   PointCloud<PointXYZ> cloud;
+  PolygonMesh pome;
   PLYReader ply_reader;
   ply_reader.read(ply_file, cloud);
+  ply_reader.read(ply_file, pome);
   PointCloud<PointXYZ>::Ptr cloudPtr (new PointCloud<PointXYZ>(cloud));
+  HMesh hame;
+  for (int i=0; i< pome.cloud.width; i++)
+  {
+    hame.addVertex(Vertex(pome.cloud[i].x, pome.cloud[i].y, pome.cloud[i].z));
+  }
+  for (int i=0; i< pome.polygons.size(); i++)
+  {
+    vector<size_t> indices(3);
+    for(int j = 0; j<pome.polygons[i].size();j++)
+    {
+      indices[j] = pome.polygons[i][j];
+    }
+    hame.addTriangle(indices[0], indices[1], indices[2]);
+  }
   return 0;
 }

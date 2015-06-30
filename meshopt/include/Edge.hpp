@@ -1,6 +1,9 @@
 #ifndef __EDGE_H__
 #define __EDGE_H__
 
+#include <Vertex.hpp>
+#include <Face.hpp>
+class Vertex;
 class Edge
 {
 
@@ -10,7 +13,7 @@ public:
         {
         } 
 	
-        Edge* next;
+  Edge* next;
 
 	Edge* pair;
 

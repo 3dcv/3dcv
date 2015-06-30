@@ -9,15 +9,16 @@ using namespace std;
 
 #include "Vertex.hpp"
 #include "Edge.hpp"
-class Face
+class Edge;
+class Face 
 {
 public:
 
-	HalfEdgeFace() :
-	    startEdge(0),
+	Face() :
+	    startEdge_(0),
 	    used_(false){};
 
-	~HalfEdgeFace();
+	~Face();
 
 	Edge* startEdge_;
 
@@ -25,7 +26,6 @@ public:
 
 };
 
-}
 
 
 #endif

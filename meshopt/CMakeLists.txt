@@ -26,6 +26,6 @@ include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/src)
 
-add_executable(Meshopt src/HMesh.cpp )
+add_executable(Meshopt Meshopt.cpp src/HMesh.cpp )
 
 target_link_libraries(Meshopt boost_program_options ${OpenCV_LIBS} ${Boost_LIBS} ${PCL_LIBRARIES})

@@ -17,11 +17,11 @@ class Vertex{
             x = y = z = 0;
         }
 
-        Vertex(const double  x_, const double y_, const double _z)
+        Vertex(const double  x_, const double y_, const double z_)
         {
-            x = _x;
-            y = _y;
-            z = _z;
+            x = x_;
+            y = y_;
+            z = z_;
         }
 
         /**
