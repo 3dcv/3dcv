@@ -1,7 +1,6 @@
 #include <boost/program_options.hpp>
 #include <stdio.h>
-#include <pcl/PolygonMesh.h>
-#include <pcl/io/ply_io.h>
+
 #include "Vertex.hpp" 
 #include "Edge.hpp" 
 #include "Face.hpp" 
@@ -13,7 +12,8 @@ using namespace pcl;
 
 int main(int argc, char** argv)
 {
-  string ply_file, config_file;
+  string ply_file, config_file, metric;
+  double fred;
   try
   {
     po::options_description generic("Allowed Options");
@@ -26,6 +26,8 @@ int main(int argc, char** argv)
     po::options_description config("Configuration parameters");
     config.add_options()
       ("ply,input", po::value(&ply_file), "path to the .ply input file containing the point cloud")
+      ("metric", po::value(&metric), "metric to make it perfect; choose Heckbert, Melax, Shortest")
+      ("face_reduction", po::value(&fred), "amount of faces to throw away")
     ;
 
     po::options_description cmdline_options;
@@ -60,41 +62,75 @@ int main(int argc, char** argv)
         notify(vm);
       }
     }
-    if(vm.count("input"))
+    if(vm.count("input") || !(vm.count("metric")) || !(vm.count("face_reduction")))
     {
       cout << "Some non-optional parameters missing. Check help for a list." << endl;
       return 0;
     }
+    
+     
+	PointCloud<PointXYZ> cloud;
+	PolygonMesh pome;
+	PLYReader ply_reader;
+	//ply_reader.read(ply_file, cloud);
+	ply_reader.read(ply_file, pome);
+	fromPCLPointCloud2(pome.cloud, cloud);
+	PointCloud<PointXYZ>::Ptr cloudPtr (new PointCloud<PointXYZ>(cloud));
+	HMesh hame;
+	for (int i=0; i< cloud.width; i++)
+	{
+		hame.addVertex(Vertex(cloud[i].x, cloud[i].y, cloud[i].z));
+	}
+	for (int i=0; i< pome.polygons.size(); i++)
+	{
+		vector<size_t> indices(3);
+	for(int j = 0; j < pome.polygons[i].vertices.size();j++)
+	{
+	  indices[j] = pome.polygons[i].vertices[j];
+	}
+	hame.addTriangle(indices[0], indices[1], indices[2]);
+	}
+	if(!metric.compare("Heckbert"))
+	{
+	  while(hame.faces_.size() > fred)
+	  {
+		  hame.removeHeckBertShit(1);
+	  }
+	}
+	else if(!metric.compare("Melax"))
+	{
+	  while(hame.faces_.size() > fred)
+	  {
+		  hame.removeMelaxShit(1);
+	  }
+	}
+	else if(!metric.compare("Shortest"))
+	{
+	  while(hame.faces_.size() > fred)
+	  {
+		  hame.removeShortestShit(1);
+		  cout << "Size  " << hame.faces_.size() << endl;
+	  }
+	}
+	else
+	 cout << cmdline_options << "\n";
+	   
+	//hame.removeShortestShit(20);
+	//hame.removeHeckBertShit(20);
+	//hame.removeMelaxShit(20);
+	//hame.printFaces();
+	//for(int i = 1; i < 70; i++)
+	//hame.collapseEdge(hame.faces_[hame.faces_.size() - i]->startEdge_);
+	//hame.printFaces();
+	hame.writeMesh("Mesh.ply");
+	cout << "Ready " << endl;
+    
   }
   catch(exception& e)
   {
     cout << e.what() << endl;
     return 0;
   }
-  PointCloud<PointXYZ> cloud;
-  PolygonMesh pome;
-  PLYReader ply_reader;
-  //ply_reader.read(ply_file, cloud);
-  ply_reader.read(ply_file, pome);
-  fromPCLPointCloud2(pome.cloud, cloud);
-  PointCloud<PointXYZ>::Ptr cloudPtr (new PointCloud<PointXYZ>(cloud));
-  HMesh hame;
-  for (int i=0; i< cloud.width; i++)
-  {
-    hame.addVertex(Vertex(cloud[i].x, cloud[i].y, cloud[i].z));
-  }
-  for (int i=0; i< pome.polygons.size(); i++)
-  {
-    vector<size_t> indices(3);
-    for(int j = 0; j < pome.polygons[i].vertices.size();j++)
-    {
-      indices[j] = pome.polygons[i].vertices[j];
-    }
-    hame.addTriangle(indices[0], indices[1], indices[2]);
-  }
-  hame.printFaces();
-  hame.collapseEdge(hame.faces_[hame.faces_.size() - 1]->startEdge_);
-  hame.printFaces();
-  cout << "Ready " << endl;
+  
   return 0;
 }

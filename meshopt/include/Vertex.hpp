@@ -45,7 +45,7 @@ class Vertex{
                             && ( this->y - other.y <= 0.00001 ) ) ) );
         }
 
-        double operator[](const int &index) const
+        float operator[](const int &index) const
 	{
           switch(index)
           {
@@ -56,7 +56,7 @@ class Vertex{
        }
             
 
-        double& operator[](const int &index)
+        float& operator[](const int &index)
         {
           switch(index)
           {
@@ -74,6 +74,16 @@ class Vertex{
           v.z = this->z + o.z;
           return v;
        }
+       
+       Vertex operator-(const Vertex& o)
+       {
+          Vertex v(*this);
+          v.x = this->x - o.x;
+          v.y = this->y - o.y;
+          v.z = this->z - o.z;
+          return v;
+       }
+       
        Vertex operator*(double factor)
        {
           Vertex v(*this);
@@ -82,12 +92,17 @@ class Vertex{
           v.z *= factor;
           return v;
        }
+       
+       double length()
+       {
+		   return sqrt(x*x + y*y + z*z);
+	   }
 
-        double x;
+        float x;
 
-        double y;
+        float y;
 
-        double  z;
+        float z;
 
         vector<Edge*> in_edges;
         vector<Edge*> out_edges;

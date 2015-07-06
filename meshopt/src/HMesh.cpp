@@ -2,7 +2,9 @@
 
 void HMesh::addVertex(Vertex v)
 {
-  vertices_.push_back(new Vertex(v));
+  Vertex* v_new = new Vertex(v);
+  vertices_.push_back(v_new);
+  vert_map_.insert(pair<Vertex*, size_t>(v_new, vertices_.size() - 1));
   vertexIndex_++;
 }
 
@@ -84,7 +86,6 @@ void HMesh::addTriangle(size_t one, size_t two, size_t three)
   {
         edges[k]->next = edges[(k + 1) % 3];
   }
-
   face->startEdge_ = edges[0];
 }
 
@@ -142,52 +143,56 @@ void HMesh::collapseEdge(Edge* edgy)
     Vertex* v2 = edgy->end;
 
     if(v1 == v2) return;
-    cout << "v1 " << *v1 << " v2 " << *v2 << endl;
     *v1 = (*v1 + *v2) * 0.5;
     edgy->start = v1;
-    cout << "face test: " << edgy->face << endl;    
     if (edgy->face)
     {   
-         cout << "in edgy->face" << endl;
-         edgy->next->next->pair->pair = edgy->next->pair;
-         edgy->next->pair->pair = edgy->next->next->pair;
+		 if(edgy->next->next->pair != NULL)
+		 {
+			edgy->next->next->pair->pair = edgy->next->pair;
+			edgy->next->pair->pair = edgy->next->next->pair;
 
-        Edge* e1 = edgy->next->next;
+			Edge* e1 = edgy->next->next;
 
-        Edge* e2 = edgy->next;
+			Edge* e2 = edgy->next;
 
-        //delete old edges
-        deleteEdge(e1, false);    
-        deleteEdge(e2, false);
+			//delete old edges
+			deleteEdge(e1, false);    
+			deleteEdge(e2, false);
+		}
     }
     
-    if (edgy->pair->face)
+    if(edgy->pair != NULL)
     {
-         cout << "in edgy->pair->face" << endl;
-        edgy->pair->next->next->pair->pair = edgy->pair->next->pair;
-        edgy->pair->next->pair->pair = edgy->pair->next->next->pair;
-        //delete old edges
+		if (edgy->pair->face)
+		{
+			if(edgy->pair->next->next->pair != NULL)
+			{	
+				edgy->pair->next->next->pair->pair = edgy->pair->next->pair;
+				edgy->pair->next->pair->pair = edgy->pair->next->next->pair;
+				//delete old edges
+			
+				Edge* e1 = edgy->pair->next->next;
+				Edge* e2 = edgy->pair->next;
 
-        Edge* e1 = edgy->pair->next->next;
-        Edge* e2 = edgy->pair->next;
+				deleteEdge(e1, false);    
+				deleteEdge(e2, false);
+			}
+		}
 
-        deleteEdge(e1, false);    
-        deleteEdge(e2, false);
-    }
-
-    // Now really delete faces
-    if(edgy->pair->face)
-    {
-        cout << "in deleting pair face" << endl;
-        deleteFace(edgy->pair->face);
-        edgy->pair = 0;
-    }
-
-    if(edgy->face)
-    {
-        cout << "in deleting face" << endl;
-        deleteFace(edgy->face);
-    }
+		// Now really delete faces
+		if(edgy->pair->face)
+		{
+			deleteFace(edgy->pair->face);
+			edgy->pair = 0;
+		}
+	}
+	
+	if(edgy->face)
+	{
+		deleteFace(edgy->face);
+		edgy->face = 0;
+	}
 
     deleteEdge(edgy);
 
@@ -207,8 +212,9 @@ void HMesh::collapseEdge(Edge* edgy)
         v1->in_edges.push_back(*it2);
         it2++;
     }
-    cout << *v1 << endl;
-    cout << *v2 << endl;
+    //v2->out_edges.clear();
+    //v2->in_edges.clear();
+    
 }
 
 void HMesh::deleteEdge(Edge* edgy, bool del)
@@ -231,7 +237,6 @@ void HMesh::deleteEdge(Edge* edgy, bool del)
     }
     if(del)
     {
-        
        if(edgy->pair != NULL)
        {
            //delete references from start point to outgoing edge
@@ -246,27 +251,30 @@ void HMesh::deleteEdge(Edge* edgy, bool del)
                 edgy->pair->end->in_edges.erase(it);
             }
             edgy->pair->pair = 0;
-        edgy->pair = 0;
+        
        }
+       edgy->pair = 0;
     }
+    //delete edgy;
+    //edgy = NULL;
 } 
 void HMesh::deleteFace(Face* f, bool del)
 {
 
-    /*if(f->startEdge_->pair->face == NULL)
+    if(f->startEdge_->pair == NULL || f->startEdge_->pair->face == NULL)
     {
         deleteEdge(f->startEdge_);
     }
 
-    if(f->startEdge_->next->pair->face == NULL)
+    if(f->startEdge_->next->pair == NULL || f->startEdge_->next->pair->face == NULL)
     {
         deleteEdge(f->startEdge_->next);
     }
 
-    if(f->startEdge_->next->next->pair->face == NULL)
+    if(f->startEdge_->next->next->pair == NULL || f->startEdge_->next->next->pair->face == NULL)
     {
         deleteEdge(f->startEdge_->next->next);
-    }*/
+    }
 
     if(del)
     {
@@ -276,4 +284,166 @@ void HMesh::deleteFace(Face* f, bool del)
             faces_.erase(it);
         }
     }
+}
+
+void HMesh::removeShortestShit(size_t amount)
+{
+	map<double, Edge*> shortest_edges;
+	
+	for(int i = 0; i < vertices_.size(); i++)
+	{
+		for(Edge* edgy : vertices_[i]->out_edges)
+		{
+			if(edgy != NULL)
+				shortest_edges.insert(pair<double, Edge*>((*edgy->end - *edgy->start).length(), edgy));
+		}
+	}
+	collapseEdge(shortest_edges.begin()->second);
+	for(int i = 0; i < vertices_.size(); i++)
+	{
+		auto elem = find(vertices_[i]->out_edges.begin(), vertices_[i]->out_edges.end(), shortest_edges.begin()->second) ;
+		if(elem != vertices_[i]->out_edges.end())
+		{  
+			vertices_[i]->out_edges.erase(elem);
+		}
+	}
+}
+
+void HMesh::removeHeckBertShit(size_t amount)
+{
+	map<double, Edge*> shortest_edges;
+	for(int i = 0; i < vertices_.size(); i++)
+	{
+		for(Edge* edgy : vertices_[i]->in_edges)
+		{
+			Vertex* v1 = edgy->start;
+			Vertex* v2 = edgy->end;
+			Vertex v_neu = (*v1 + *v2) * 0.5;
+			Vertex v_b1 = v_neu - *v1;
+			Vector3f ev_b1 = Vector3f(v_b1.x, v_b1.y, v_b1.z);
+		    double heck_meck = 0;
+		    for(int i = 0;i < v1->out_edges.size();i++)
+		    {
+				Face* plane = v1->out_edges[i]->face;
+				Vertex s1 = (*plane->startEdge_->end - *plane->startEdge_->start);
+				Vertex s2 = (*plane->startEdge_->next->end - *plane->startEdge_->start);
+				Vector3f stv1 = Vector3f(s1.x, s1.y, s1.z);
+				Vector3f stv2 = Vector3f(s2.x, s2.y, s2.z);
+				Vector3f normal = stv1.cross(stv2);
+				heck_meck += pow((normal.dot(ev_b1)), 2); 
+			}
+			Vertex v_b2 = v_neu - *v2;
+			Vector3f ev_b2 = Vector3f(v_b2.x, v_b2.y, v_b2.z);
+		    for(int i = 0;i < v2->out_edges.size();i++)
+		    {
+				Face* plane = v2->out_edges[i]->face;
+				Vertex s1 = (*plane->startEdge_->end - *plane->startEdge_->start);
+				Vertex s2 = (*plane->startEdge_->next->end - *plane->startEdge_->start);
+				Vector3f stv1 = Vector3f(s1.x, s1.y, s1.z);
+				Vector3f stv2 = Vector3f(s2.x, s2.y, s2.z);
+				Vector3f normal = stv1.cross(stv2);
+				heck_meck += pow((normal.dot(ev_b2)), 2); 
+			}
+			shortest_edges.insert(pair<double, Edge*>(heck_meck, edgy));
+		}
+	}
+	collapseEdge(shortest_edges.begin()->second);
+	for(int i = 0; i < vertices_.size(); i++)
+	{
+		auto elem = find(vertices_[i]->in_edges.begin(), vertices_[i]->in_edges.end(), shortest_edges.begin()->second) ;
+		if(elem != vertices_[i]->in_edges.end())
+		{  
+			vertices_[i]->in_edges.erase(elem);
+		}
+		elem = find(vertices_[i]->out_edges.begin(), vertices_[i]->out_edges.end(), shortest_edges.begin()->second) ;
+		if(elem != vertices_[i]->out_edges.end())
+		{  
+			vertices_[i]->out_edges.erase(elem);
+		}
+	}
+}
+
+void HMesh::removeMelaxShit(size_t amount)
+{
+	map<double, Edge*> shortest_edges;
+	for(int i = 0; i < vertices_.size(); i++)
+	{
+		for(Edge* edgy : vertices_[i]->in_edges)
+		{
+			Vertex* u = edgy->start;
+			Vertex* v = edgy->end;
+			double uv_length = (*v - *u).length();
+		    vector<Vector3f> uv_planes;
+		    vector<Vector3f> u_planes;
+		    for(int i = 0;i < u->out_edges.size();i++)
+		    {
+				Face* plane = u->out_edges[i]->face;
+				Vertex s1 = (*plane->startEdge_->end - *plane->startEdge_->start);
+				Vertex s2 = (*plane->startEdge_->next->end - *plane->startEdge_->start);
+				Vector3f stv1 = Vector3f(s1.x, s1.y, s1.z);
+				Vector3f stv2 = Vector3f(s2.x, s2.y, s2.z);
+				Vector3f normal = stv1.cross(stv2);
+				uv_planes.push_back(normal);
+				u_planes.push_back(normal);
+			}
+		    for(int i = 0;i < v->out_edges.size();i++)
+		    {
+			    Face* plane = v->out_edges[i]->face;
+				Vertex s1 = (*plane->startEdge_->end - *plane->startEdge_->start);
+				Vertex s2 = (*plane->startEdge_->next->end - *plane->startEdge_->start);
+				Vector3f stv1 = Vector3f(s1.x, s1.y, s1.z);
+				Vector3f stv2 = Vector3f(s2.x, s2.y, s2.z);
+				Vector3f normal = stv1.cross(stv2);
+				uv_planes.push_back(normal);
+			}
+			double max_val = 0;
+			for(int j = 0; j < u_planes.size(); j++)
+			{
+				Vector3f normal_a = u_planes[j];
+				double min_val = 1000000;
+				for(int k = 0; k < uv_planes.size(); k++)
+				{
+					double step = (1 - (normal_a.dot(uv_planes[k])));
+					if(step < min_val)
+						min_val = step;
+				}
+				if(min_val > max_val)
+					max_val = min_val;
+			}
+			double mex_meck = uv_length * max_val;
+			shortest_edges.insert(pair<double, Edge*>(mex_meck, edgy));
+		}
+	}
+	collapseEdge(shortest_edges.begin()->second);
+	for(int i = 0; i < vertices_.size(); i++)
+	{
+		auto elem = find(vertices_[i]->in_edges.begin(), vertices_[i]->in_edges.end(), shortest_edges.begin()->second) ;
+		if(elem != vertices_[i]->in_edges.end())
+		{  
+			vertices_[i]->in_edges.erase(elem);
+		}
+		elem = find(vertices_[i]->out_edges.begin(), vertices_[i]->out_edges.end(), shortest_edges.begin()->second) ;
+		if(elem != vertices_[i]->out_edges.end())
+		{  
+			vertices_[i]->out_edges.erase(elem);
+		}
+	}
+}
+
+void HMesh::writeMesh(string file_name)
+{
+	PolygonMesh triangles;
+	PointCloud<PointXYZ> cloud;
+	for(int i = 0; i < vertices_.size(); i++)
+		cloud.push_back(PointXYZ(vertices_[i]->x, vertices_[i]->y, vertices_[i]->z));
+	toPCLPointCloud2(cloud, triangles.cloud);
+    for(int i = 0; i < faces_.size(); i++)
+    {
+		pcl::Vertices triangle;
+		triangle.vertices.push_back(vert_map_[faces_[i]->startEdge_->start]);
+		triangle.vertices.push_back(vert_map_[faces_[i]->startEdge_->end]);
+		triangle.vertices.push_back(vert_map_[faces_[i]->startEdge_->next->end]);
+		triangles.polygons.push_back(triangle);
+	}
+	pcl::io::savePLYFile(file_name,triangles); 
 }
