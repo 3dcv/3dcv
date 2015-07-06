@@ -93,6 +93,8 @@ int main(int argc, char** argv)
     hame.addTriangle(indices[0], indices[1], indices[2]);
   }
   hame.printFaces();
+  hame.collapseEdge(hame.faces_[hame.faces_.size() - 1]->startEdge_);
+  hame.printFaces();
   cout << "Ready " << endl;
   return 0;
 }

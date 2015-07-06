@@ -14,6 +14,7 @@ using namespace std;
 #include "Vertex.hpp"
 #include "Edge.hpp"
 #include "Face.hpp"
+#include <queue>
 class HMesh
 {
 public:
@@ -31,13 +32,18 @@ public:
   
   void findEdgeNeighbors(size_t face_ind, vector<Face*>& neighbors_inds);
   void findVertexNeighbors(size_t vert_ind, vector<Face*>& neighbors_inds);
+  void collapseEdge(Edge* edgy);
   void printFaces();
+  void deleteFace(Face* f, bool del = true);
+  void deleteEdge(Edge* edgy, bool del = true);
 
-	vector<Face*>                                  faces_;
+	vector<Face*>                                 faces_;
 
-	vector<Vertex*>                                vertices_;
+	vector<Vertex*>                               vertices_;
 
-	size_t                                         vertexIndex_;
+	size_t                                        vertexIndex_;
+
+  priority_queue<Face*>                         p_q_;
 
 };
 

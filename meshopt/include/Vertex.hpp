@@ -32,6 +32,8 @@ class Vertex{
             x = o.x;
             y = o.y;
             z = o.z;
+            in_edges = o.in_edges;
+            out_edges = o.out_edges;
         }
 
         bool operator<(const Vertex &other) const
@@ -63,7 +65,23 @@ class Vertex{
             case 2: return z;
           }
        }
-
+       
+       Vertex operator+(const Vertex& o)
+       {
+          Vertex v(*this);
+          v.x = this->x + o.x;
+          v.y = this->y + o.y;
+          v.z = this->z + o.z;
+          return v;
+       }
+       Vertex operator*(double factor)
+       {
+          Vertex v(*this);
+          v.x *= factor;
+          v.y *= factor;
+          v.z *= factor;
+          return v;
+       }
 
         double x;
 

@@ -18,7 +18,7 @@ public:
 	    startEdge_(0),
 	    used_(false){};
 
-	~Face();
+	~Face(){};
 
 	Edge* startEdge_;
 

@@ -118,11 +118,162 @@ void HMesh::findVertexNeighbors(size_t vert_ind, vector<Face*>& neighbors_inds)
 
 void HMesh::printFaces()
 {
-	for(int i = 0; i < faces_.size();i++)
-	{
-		cout << "face: " << i << endl;
-		cout << "vert 1: " << *faces_[i]->startEdge_->start << endl;
-		cout << "vert 2: " << *faces_[i]->startEdge_->next->start << endl;
-		cout << "vert 3: " << *faces_[i]->startEdge_->next->next->start << endl;
-	}
+	//for(int i = 0; i < faces_.size();i++)
+	//{
+    int index = faces_.size() - 1; 
+    
+    cout << "edge 1: " << faces_[index]->startEdge_ << endl;
+    cout << "edge 2: " << faces_[index]->startEdge_->next << endl;
+    cout << "edge 3: " << faces_[index]->startEdge_->next->next << endl;
+    
+    cout << "edge 1 pair: " << faces_[index]->startEdge_->pair << endl;
+	  
+		cout << "face: " << faces_.size() - 1 << endl;
+		cout << "vert 1: " << *faces_[index]->startEdge_->start << endl;
+		cout << "vert 2: " << *faces_[index]->startEdge_->next->start << endl;
+		cout << "vert 3: " << *faces_[index]->startEdge_->next->next->start << endl;
+	
+    //}
+}
+
+void HMesh::collapseEdge(Edge* edgy)
+{
+    Vertex* v1 = edgy->start;
+    Vertex* v2 = edgy->end;
+
+    if(v1 == v2) return;
+    cout << "v1 " << *v1 << " v2 " << *v2 << endl;
+    *v1 = (*v1 + *v2) * 0.5;
+    edgy->start = v1;
+    cout << "face test: " << edgy->face << endl;    
+    if (edgy->face)
+    {   
+         cout << "in edgy->face" << endl;
+         edgy->next->next->pair->pair = edgy->next->pair;
+         edgy->next->pair->pair = edgy->next->next->pair;
+
+        Edge* e1 = edgy->next->next;
+
+        Edge* e2 = edgy->next;
+
+        //delete old edges
+        deleteEdge(e1, false);    
+        deleteEdge(e2, false);
+    }
+    
+    if (edgy->pair->face)
+    {
+         cout << "in edgy->pair->face" << endl;
+        edgy->pair->next->next->pair->pair = edgy->pair->next->pair;
+        edgy->pair->next->pair->pair = edgy->pair->next->next->pair;
+        //delete old edges
+
+        Edge* e1 = edgy->pair->next->next;
+        Edge* e2 = edgy->pair->next;
+
+        deleteEdge(e1, false);    
+        deleteEdge(e2, false);
+    }
+
+    // Now really delete faces
+    if(edgy->pair->face)
+    {
+        cout << "in deleting pair face" << endl;
+        deleteFace(edgy->pair->face);
+        edgy->pair = 0;
+    }
+
+    if(edgy->face)
+    {
+        cout << "in deleting face" << endl;
+        deleteFace(edgy->face);
+    }
+
+    deleteEdge(edgy);
+
+    auto it =v2->out_edges.begin();
+
+    while(it !=v2->out_edges.end())
+    {
+        (*it)->start = v1;
+        v1->out_edges.push_back(*it);
+        it++;
+    }
+
+    auto it2 = v2->in_edges.begin();
+    while(it2 != v2->in_edges.end())
+    {
+        (*it2)->end = v1;
+        v1->in_edges.push_back(*it2);
+        it2++;
+    }
+    cout << *v1 << endl;
+    cout << *v2 << endl;
+}
+
+void HMesh::deleteEdge(Edge* edgy, bool del)
+{
+  
+   if(edgy->start != NULL)
+   {
+      //delete references from start point to outgoing edge
+        auto it = find(edgy->start->out_edges.begin(), edgy->start->out_edges.end(), edgy);
+        if(it != edgy->start->out_edges.end())
+        {
+            edgy->start->out_edges.erase(it);
+        }
+        
+        it = find(edgy->end->in_edges.begin(), edgy->end->in_edges.end(), edgy);
+        if(it !=  edgy->end->in_edges.end())
+        {
+            edgy->end->in_edges.erase(it);
+        }
+    }
+    if(del)
+    {
+        
+       if(edgy->pair != NULL)
+       {
+           //delete references from start point to outgoing edge
+            auto it = find(edgy->pair->start->out_edges.begin(), edgy->pair->start->out_edges.end(), edgy->pair);
+            if(it != edgy->pair->start->out_edges.end())
+            {
+                edgy->pair->start->out_edges.erase(it);
+            }
+            it = find(edgy->pair->end->in_edges.begin(), edgy->pair->end->in_edges.end(), edgy->pair);
+            if(it != edgy->pair->end->in_edges.end())
+            {
+                edgy->pair->end->in_edges.erase(it);
+            }
+            edgy->pair->pair = 0;
+        edgy->pair = 0;
+       }
+    }
+} 
+void HMesh::deleteFace(Face* f, bool del)
+{
+
+    /*if(f->startEdge_->pair->face == NULL)
+    {
+        deleteEdge(f->startEdge_);
+    }
+
+    if(f->startEdge_->next->pair->face == NULL)
+    {
+        deleteEdge(f->startEdge_->next);
+    }
+
+    if(f->startEdge_->next->next->pair->face == NULL)
+    {
+        deleteEdge(f->startEdge_->next->next);
+    }*/
+
+    if(del)
+    {
+        auto it = find(faces_.begin(), faces_.end(), f);
+        if(it != faces_.end())
+        {
+            faces_.erase(it);
+        }
+    }
 }
