@@ -95,6 +95,7 @@ int main(int argc, char** argv)
 	  while(hame.faces_.size() > fred)
 	  {
 		  hame.removeHeckBertShit(1);
+		  cout << "Size  " << hame.faces_.size() << endl;
 	  }
 	}
 	else if(!metric.compare("Melax"))
@@ -102,6 +103,7 @@ int main(int argc, char** argv)
 	  while(hame.faces_.size() > fred)
 	  {
 		  hame.removeMelaxShit(1);
+		  cout << "Size  " << hame.faces_.size() << endl;
 	  }
 	}
 	else if(!metric.compare("Shortest"))
