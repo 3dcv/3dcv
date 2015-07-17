@@ -34,9 +34,15 @@ pcl::PassThrough<PointXYZRGBA> pass;
 int countcount = 0;
 
 void 
-viewerPsycho (pcl::visualization::PCLVisualizer& viewer)
+viewerPsychoCylinder(pcl::visualization::PCLVisualizer& viewer)
 {
     viewer.addCylinder(*coefficients_cylinder, "sphere" + to_string(countcount), 0);
+    countcount++;
+}
+
+void 
+viewerPsychoSphere (pcl::visualization::PCLVisualizer& viewer)
+{
     viewer.addSphere(*coefficients_sphere, "cylinder" + to_string(countcount), 0);
     countcount++;
 }
@@ -86,8 +92,9 @@ void grabberCallback(const PointCloud<PointXYZRGBA>::ConstPtr& cloud)
       pass.setFilterFieldName ("z");
       pass.setFilterLimits(0, 1.5);
       pass.filter(*cloud_filtered);
+	  if(!seggy) viewer->showCloud(cloud_filtered);
       //cout << cloud->sensor_origin_ << endl; 
-      if(seggy)
+      else
       {
           pcl::PointCloud<PointXYZRGBA>::Ptr cloud_plane = segment();
          //cout << "seg seg " << cloud_plane->width << endl;
@@ -131,7 +138,6 @@ void grabberCallback(const PointCloud<PointXYZRGBA>::ConstPtr& cloud)
 	 plane->width = plane->points.size();
 	 plane->height = 1;
 	 plane->is_dense = true;
-	 cout << "widthhhhh " << plane->width << endl;
         viewer->showCloud(plane);
         PointXYZRGBA imin;
 		PointXYZRGBA imax;
@@ -143,8 +149,6 @@ void grabberCallback(const PointCloud<PointXYZRGBA>::ConstPtr& cloud)
 		(*cloud_plane)[0].y += normal.y *3;
 		(*cloud_plane)[0].z += normal.z *3;
 		pcl::getMinMax3D (*plane, imin, imax);
-		cout << "min " << imin << endl;
-		cout << "max " << imax << endl;
 		// build the condition
 		pcl::ConditionAnd<pcl::PointXYZRGBA>::Ptr range_cond (new
 					  pcl::ConditionAnd<pcl::PointXYZRGBA> ());
@@ -195,9 +199,6 @@ void grabberCallback(const PointCloud<PointXYZRGBA>::ConstPtr& cloud)
           countcount = 0;
           pcl::PointCloud<pcl::PointXYZRGBA>::Ptr all_cluster(new pcl::PointCloud<pcl::PointXYZRGBA>);
           
-          cout << "incoming points " << cloud_filtered3->width << endl;
-          cout << "filtered points " << cloud_filtered2->width - cloud_filtered3->width << endl;
-          cout << "clusters found " << clusters.size() << endl;
           for (auto i = clusters.begin(); i != clusters.end(); ++i)
           {
              pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZRGBA>);
@@ -232,6 +233,34 @@ void grabberCallback(const PointCloud<PointXYZRGBA>::ConstPtr& cloud)
             norm_seg.setInputNormals (cloud_normals3);
             //cout << "coeffis " << *coefficients_cylinder << endl;
             norm_seg.segment (*inliers_cylinder, *coefficients_cylinder);
+            //coefficients_cylinder->[0]
+            Eigen::VectorXf cyc_vec(3);
+            coefficients_cylinder->values[3] = coefficients_cylinder->values[3]*0.2;
+            coefficients_cylinder->values[4] = coefficients_cylinder->values[4]*0.2;
+            coefficients_cylinder->values[5] = coefficients_cylinder->values[5]*0.2;
+            
+             //calc cylinder error
+            auto cylinder_model = norm_seg.getModel();
+            std::vector<double> cy_disti;
+            Eigen::VectorXf vecci(7);
+            vecci[0] = coefficients_cylinder->values[0];
+            vecci[1] = coefficients_cylinder->values[1];
+            vecci[2] = coefficients_cylinder->values[2];
+            vecci[3] = coefficients_cylinder->values[3];
+            vecci[4] = coefficients_cylinder->values[4];
+            vecci[5] = coefficients_cylinder->values[5];
+            vecci[6] = coefficients_cylinder->values[6];
+            cylinder_model->getDistancesToModel(vecci, cy_disti);
+            cout << "cylinder disti size " << cy_disti.size() << endl;
+            double cylinder_error = 0;
+            for(double err : cy_disti)
+            {
+				cylinder_error += pow(err,2);
+			}
+			cylinder_error = sqrt(cylinder_error);
+            
+            cylinder_error /= 2.0;
+            
             cout << "get spherical " << endl;
             norm_seg.setOptimizeCoefficients (true);
             norm_seg.setModelType (pcl::SACMODEL_SPHERE);
@@ -251,7 +280,41 @@ void grabberCallback(const PointCloud<PointXYZRGBA>::ConstPtr& cloud)
             //extract.setNegative (false);
             //pcl::PointCloud<PointXYZRGBA>::Ptr cloud_cylinder (new pcl::PointCloud<PointXYZRGBA> ());
             //extract.filter (*cloud_cylinder);
-            viewer->runOnVisualizationThreadOnce (viewerPsycho);
+            
+            //calc sphere error
+            auto sphere_model = norm_seg.getModel();
+            std::vector<double> sp_disti;
+            Eigen::VectorXf vecci2(4);
+			vecci2[0] = coefficients_sphere->values[0];
+            vecci2[1] = coefficients_sphere->values[1];
+            vecci2[2] = coefficients_sphere->values[2];
+            vecci2[3] = coefficients_sphere->values[3];
+            sphere_model->getDistancesToModel(vecci2, sp_disti);
+             cout << "sphere disti size " << sp_disti.size() << endl;
+            double sphere_error = 0;
+            for(double err : sp_disti)
+            {
+				sphere_error += pow(err,2);
+			}
+			sphere_error = sqrt(sphere_error);
+			
+			sphere_error *= 10.0;
+			
+			cout << "cylinder error " << cylinder_error << endl;
+			cout << "sphere error " << sphere_error << endl;
+			
+			if(cylinder_error < sphere_error)
+			{
+				cout << "Its a rodcocker!!!! " << endl;
+				viewer->runOnVisualizationThreadOnce (viewerPsychoCylinder);
+			}
+			else
+			{
+				cout << "Its a sphere!!!! " << endl;
+				viewer->runOnVisualizationThreadOnce (viewerPsychoSphere);
+			}	
+			 boost::this_thread::sleep(boost::posix_time::seconds(5));
+			
           }
           all_cluster->width = all_cluster->points.size();
           all_cluster->height = 1;
