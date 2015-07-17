@@ -1,11 +1,13 @@
 #include <pcl/io/openni_grabber.h>
 #include <pcl/io/pcd_io.h>
+#include <pcl/common/common.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/visualization/cloud_viewer.h>
 #include <pcl/console/parse.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/extract_clusters.h>
+#include <pcl/filters/conditional_removal.h>
 #include <pcl/features/normal_3d.h>
 
 using namespace std;
@@ -15,9 +17,12 @@ boost::shared_ptr<visualization::CloudViewer> viewer;
 PointCloud<PointXYZRGBA>::Ptr cloudptr(new PointCloud<PointXYZRGBA>);
 PointCloud<PointXYZRGBA>::Ptr cloud_filtered(new PointCloud<PointXYZRGBA>);
 PointCloud<PointXYZRGBA>::Ptr cloud_filtered2(new PointCloud<PointXYZRGBA>);
-pcl::SACSegmentationFromNormals<PointXYZRGBA, pcl::Normal> seg;
+PointCloud<PointXYZRGBA>::Ptr cloud_filtered3(new PointCloud<PointXYZRGBA>);
+pcl::SACSegmentationFromNormals<PointXYZRGBA, pcl::Normal> norm_seg;
+pcl::SACSegmentation<PointXYZRGBA> seg;
 pcl::PointCloud<pcl::Normal>::Ptr cloud_normals (new pcl::PointCloud<pcl::Normal>);
 pcl::PointCloud<pcl::Normal>::Ptr cloud_normals2 (new pcl::PointCloud<pcl::Normal>);
+pcl::PointCloud<pcl::Normal>::Ptr cloud_normals4 (new pcl::PointCloud<pcl::Normal>);
 pcl::search::KdTree<PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<PointXYZRGBA> ());
 pcl::PointIndices::Ptr inliers_plane (new pcl::PointIndices), inliers_cylinder (new pcl::PointIndices), inliers_sphere (new pcl::PointIndices);
 pcl::NormalEstimation<PointXYZRGBA, pcl::Normal> ne;
@@ -47,18 +52,12 @@ viewerPsychoRemoval (pcl::visualization::PCLVisualizer& viewer)
 pcl::PointCloud<PointXYZRGBA>::Ptr segment()
 {
   cout << "welcome to segmentation." << endl;
-  ne.setSearchMethod (tree);
-  ne.setInputCloud (cloud_filtered);
-  ne.setKSearch (50);
-  ne.compute (*cloud_normals);
   seg.setOptimizeCoefficients (true);
   seg.setModelType (pcl::SACMODEL_PLANE);
-  seg.setNormalDistanceWeight (0.1);
   seg.setMethodType (pcl::SAC_RANSAC);
   seg.setMaxIterations (50);
-  seg.setDistanceThreshold (0.02);
+  seg.setDistanceThreshold (0.012);
   seg.setInputCloud (cloud_filtered);
-  seg.setInputNormals (cloud_normals);
   // Obtain the plane inliers and coefficients
   seg.segment (*inliers_plane, *coefficients_plane);
   std::cerr << "Plane coefficients: " << *coefficients_plane << std::endl;
@@ -85,7 +84,7 @@ void grabberCallback(const PointCloud<PointXYZRGBA>::ConstPtr& cloud)
       pcl::PassThrough<PointXYZRGBA> pass;
       pass.setInputCloud(cloud);
       pass.setFilterFieldName ("z");
-      pass.setFilterLimits(0, 1);
+      pass.setFilterLimits(0, 1.5);
       pass.filter(*cloud_filtered);
       //cout << cloud->sensor_origin_ << endl; 
       if(seggy)
@@ -99,22 +98,86 @@ void grabberCallback(const PointCloud<PointXYZRGBA>::ConstPtr& cloud)
             (*cloud_plane)[i].b = 0;
             (*cloud_plane)[i].a = 255;
         }
-        //viewer->showCloud(cloud_filtered);
         viewer->showCloud(cloud_plane);
+        
+        cout << "go cluster !! " << endl;
+        pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> clustering;
+        
+        clustering.setClusterTolerance(0.018);
+	  // Set the minimum and maximum number of points that a cluster can have.
+	  clustering.setMinClusterSize(100);
+	  clustering.setMaxClusterSize(500000);
+	  clustering.setSearchMethod(tree);
+	  clustering.setInputCloud(cloud_plane);
+	  std::vector<pcl::PointIndices> plane_clusters;
+	  clustering.extract(plane_clusters);
+	  pcl::PointCloud<pcl::PointXYZRGBA>::Ptr plane(new pcl::PointCloud<pcl::PointXYZRGBA>);
+	  size_t max_points = 0;
+	  int index;
+	  cout << "cluster planes " << plane_clusters.size() << endl;
+	  for (int i = 0; i < plane_clusters.size(); ++i)
+	  {
+		  if(plane_clusters[i].indices.size() > max_points)
+		  {
+			  max_points = plane_clusters[i].indices.size();
+			  index = i;
+		  }      
+      }
+      
+     for (auto point = plane_clusters[index].indices.begin(); point != plane_clusters[index].indices.end(); point++)
+	 {
+	   plane->points.push_back(cloud_plane->points[*point]);
+	 }
+	 plane->width = plane->points.size();
+	 plane->height = 1;
+	 plane->is_dense = true;
+	 cout << "widthhhhh " << plane->width << endl;
+        viewer->showCloud(plane);
+        PointXYZRGBA imin;
+		PointXYZRGBA imax;
+		PointXYZRGBA normal; 
+		normal.x  = coefficients_plane->values[0];
+		normal.y  = coefficients_plane->values[1];
+		normal.z  = coefficients_plane->values[2];
+		(*cloud_plane)[0].x += normal.x *3;
+		(*cloud_plane)[0].y += normal.y *3;
+		(*cloud_plane)[0].z += normal.z *3;
+		pcl::getMinMax3D (*plane, imin, imax);
+		cout << "min " << imin << endl;
+		cout << "max " << imax << endl;
+		// build the condition
+		pcl::ConditionAnd<pcl::PointXYZRGBA>::Ptr range_cond (new
+					  pcl::ConditionAnd<pcl::PointXYZRGBA> ());
+					  
+		range_cond->addComparison (pcl::FieldComparison<pcl::PointXYZRGBA>::ConstPtr (new
+		  pcl::FieldComparison<pcl::PointXYZRGBA> ("x", pcl::ComparisonOps::LT, imax.x)));
+		range_cond->addComparison (pcl::FieldComparison<pcl::PointXYZRGBA>::ConstPtr (new
+		  pcl::FieldComparison<pcl::PointXYZRGBA> ("x", pcl::ComparisonOps::GT, imin.x)));
+		range_cond->addComparison (pcl::FieldComparison<pcl::PointXYZRGBA>::ConstPtr (new
+		  pcl::FieldComparison<pcl::PointXYZRGBA> ("y", pcl::ComparisonOps::LT, imax.y)));
+		range_cond->addComparison (pcl::FieldComparison<pcl::PointXYZRGBA>::ConstPtr (new
+		  pcl::FieldComparison<pcl::PointXYZRGBA> ("y", pcl::ComparisonOps::GT, imin.y)));
+		range_cond->addComparison (pcl::FieldComparison<pcl::PointXYZRGBA>::ConstPtr (new
+		  pcl::FieldComparison<pcl::PointXYZRGBA> ("z", pcl::ComparisonOps::LT, imax.z)));
+		range_cond->addComparison (pcl::FieldComparison<pcl::PointXYZRGBA>::ConstPtr (new
+		  pcl::FieldComparison<pcl::PointXYZRGBA> ("z", pcl::ComparisonOps::GT, imin.z)));
+
+		// build the filter
+		pcl::ConditionalRemoval<pcl::PointXYZRGBA> condrem (range_cond);		
+		
         if(clusty)
         {
           cout << "get clusty " << endl;
           // Remove the planar inliers, extract the rest
           extract.setNegative (true);
           extract.filter (*cloud_filtered2);
-          extract_normals.setNegative (true);
-          extract_normals.setInputCloud (cloud_normals);
-          extract_normals.setIndices (inliers_plane);
-          extract_normals.filter (*cloud_normals2);
 
-
+		  condrem.setInputCloud (cloud_filtered2);
+		  // apply filter
+		  condrem.filter (*cloud_filtered3);
+		  viewer->showCloud(cloud_filtered3);
           // Euclidean clustering object.
-          pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> clustering;
+          
           // Set cluster tolerance to 2cm (small values may cause objects to be divided
           // in several clusters, whereas big values may join objects in a same cluster).
           clustering.setClusterTolerance(0.018);
@@ -122,7 +185,7 @@ void grabberCallback(const PointCloud<PointXYZRGBA>::ConstPtr& cloud)
           clustering.setMinClusterSize(2000);
           clustering.setMaxClusterSize(50000);
           clustering.setSearchMethod(tree);
-          clustering.setInputCloud(cloud_filtered2);
+          clustering.setInputCloud(cloud_filtered3);
           std::vector<pcl::PointIndices> clusters;
           clustering.extract(clusters);
           while(countcount >= 0)
@@ -131,6 +194,10 @@ void grabberCallback(const PointCloud<PointXYZRGBA>::ConstPtr& cloud)
           }
           countcount = 0;
           pcl::PointCloud<pcl::PointXYZRGBA>::Ptr all_cluster(new pcl::PointCloud<pcl::PointXYZRGBA>);
+          
+          cout << "incoming points " << cloud_filtered3->width << endl;
+          cout << "filtered points " << cloud_filtered2->width - cloud_filtered3->width << endl;
+          cout << "clusters found " << clusters.size() << endl;
           for (auto i = clusters.begin(); i != clusters.end(); ++i)
           {
              pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZRGBA>);
@@ -138,44 +205,45 @@ void grabberCallback(const PointCloud<PointXYZRGBA>::ConstPtr& cloud)
              // ...add all its points to a new cloud...
              for (auto point = i->indices.begin(); point != i->indices.end(); point++)
              {
-               cluster->points.push_back(cloud_filtered2->points[*point]);
+               cluster->points.push_back(cloud_filtered3->points[*point]);
                all_cluster->points.push_back(cloud_filtered2->points[*point]);
-               cloud_normals3->points.push_back(cloud_normals2->points[*point]);
              }
              cluster->width = cluster->points.size();
              cluster->height = 1;
             cluster->is_dense = true;
-            cloud_normals3->width = cloud_normals3->points.size();
-            cloud_normals3->height = 1;
-            cloud_normals3->is_dense = true;
 
-            cout << "clusters found " << clusters.size() << endl;
-            viewer->showCloud(cluster);
+            
+            //viewer->showCloud(cluster);
+            
+            ne.setSearchMethod (tree);
+			ne.setInputCloud (cluster);
+			ne.setKSearch (50);
+			ne.compute (*cloud_normals3);
             
             cout << "get cylindrical " << endl;
-            seg.setOptimizeCoefficients (true);
-            seg.setModelType (pcl::SACMODEL_CYLINDER);
-            seg.setMethodType (pcl::SAC_RANSAC);
-            seg.setNormalDistanceWeight (0.1);
-            seg.setMaxIterations (20000);
-            seg.setDistanceThreshold (0.02);
-            seg.setRadiusLimits (0, 0.10);
-            seg.setInputCloud (cluster);
-            seg.setInputNormals (cloud_normals3);
+            norm_seg.setOptimizeCoefficients (true);
+            norm_seg.setModelType (pcl::SACMODEL_CYLINDER);
+            norm_seg.setMethodType (pcl::SAC_PROSAC );
+            norm_seg.setNormalDistanceWeight (0.1);
+            norm_seg.setMaxIterations (10000);
+            norm_seg.setDistanceThreshold (0.02);
+            norm_seg.setRadiusLimits (0, 0.10);
+            norm_seg.setInputCloud (cluster);
+            norm_seg.setInputNormals (cloud_normals3);
             //cout << "coeffis " << *coefficients_cylinder << endl;
-            seg.segment (*inliers_cylinder, *coefficients_cylinder);
+            norm_seg.segment (*inliers_cylinder, *coefficients_cylinder);
             cout << "get spherical " << endl;
-            seg.setOptimizeCoefficients (true);
-            seg.setModelType (pcl::SACMODEL_SPHERE);
-            seg.setMethodType (pcl::SAC_RANSAC);
-            seg.setNormalDistanceWeight (0.1);
-            seg.setMaxIterations (20000);
-            seg.setDistanceThreshold (0.02);
-            seg.setRadiusLimits (0, 0.10);
-            seg.setInputCloud (cluster);
-            seg.setInputNormals (cloud_normals3);
+            norm_seg.setOptimizeCoefficients (true);
+            norm_seg.setModelType (pcl::SACMODEL_SPHERE);
+            norm_seg.setMethodType (pcl::SAC_PROSAC);
+            norm_seg.setNormalDistanceWeight (0.1);
+            norm_seg.setMaxIterations (10000);
+            norm_seg.setDistanceThreshold (0.02);
+            norm_seg.setRadiusLimits (0, 0.10);
+            norm_seg.setInputCloud (cluster);
+            norm_seg.setInputNormals (cloud_normals3);
             //cout << "coeffis " << *coefficients_cylinder << endl;
-            seg.segment (*inliers_sphere, *coefficients_sphere);
+            norm_seg.segment (*inliers_sphere, *coefficients_sphere);
  
             //cout << "coeffis " << *coefficients_cylinder << endl;
             //extract.setInputCloud (cluster);
@@ -188,7 +256,7 @@ void grabberCallback(const PointCloud<PointXYZRGBA>::ConstPtr& cloud)
           all_cluster->width = all_cluster->points.size();
           all_cluster->height = 1;
           all_cluster->is_dense = true;
-          viewer->showCloud(all_cluster);
+          //viewer->showCloud(all_cluster);
         }
       }
     }
